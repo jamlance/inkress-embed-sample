@@ -1,0 +1,24 @@
+{
+  "name": "bookerva-apps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bookerva Org + Marketplace Org embedded apps — 13 deploys × 28 marketplace listings, plus the shared core.",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "register": "node scripts/register-app.mjs",
+    "deploy": "node scripts/deploy-app.mjs",
+    "seed": "node scripts/seed-bookerva-merchant.mjs"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pg": "^8.21.0"
+  }
+}
