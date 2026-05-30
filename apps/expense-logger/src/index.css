@@ -1,1 +1,27 @@
 @import "@bookerva-apps/core/styles.css";
+
+/* Expense Logger — P&L view + category bars + expense management. */
+
+.ex-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.ex-top h2 { font-size: 1.0625rem; }
+.ex-top-actions { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.ex-ranges, .ex-filters { display: inline-flex; gap: 3px; background: var(--panel); padding: 3px; border-radius: 9px; border: 1px solid var(--line); }
+.ex-range, .ex-filter { height: 30px; padding: 0 12px; font-size: 0.8125rem; font-weight: 600; border: 0; background: transparent; color: var(--ink-soft); border-radius: 7px; }
+.ex-range:hover, .ex-filter:hover { color: var(--ink); background: transparent; }
+.ex-range.is-on, .ex-filter.is-on { background: var(--surface); color: var(--accent); box-shadow: var(--e1); }
+.ex-filters { flex-wrap: wrap; }
+
+.ex-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; align-items: start; }
+@media (max-width: 720px) { .ex-cols { grid-template-columns: 1fr; } }
+
+.ex-cats { display: flex; flex-direction: column; gap: 12px; }
+.ex-cat-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 0.8125rem; margin-bottom: 5px; }
+.ex-cat-head b { font-variant-numeric: tabular-nums; }
+.ex-cat-track { height: 8px; border-radius: 99px; background: var(--panel); overflow: hidden; }
+.ex-cat-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s var(--ease); }
+
+.ex-note { display: flex; align-items: center; gap: 7px; margin-top: 14px; }
+
+.ex-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.ex-field { display: flex; flex-direction: column; gap: 5px; }
