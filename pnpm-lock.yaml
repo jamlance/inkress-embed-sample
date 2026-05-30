@@ -381,6 +381,9 @@ importers:
       '@inkress/app-bridge':
         specifier: github:jamlance/app-bridge
         version: https://codeload.github.com/jamlance/app-bridge/tar.gz/31c693b7345c2110bf92a482d63530feae0a8925
+      better-sqlite3:
+        specifier: ^11.5.0
+        version: 11.10.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
