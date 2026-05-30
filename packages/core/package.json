@@ -10,6 +10,7 @@
     "./server": "./src/server.mjs",
     "./inkress-api": "./src/inkress-api.mjs",
     "./session-store": "./src/session-store.mjs",
+    "./db": "./src/db.mjs",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
