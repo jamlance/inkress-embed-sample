@@ -340,7 +340,7 @@ async function runCommand(
     }
     case "sess-exchange": {
       const clientId = window.prompt(
-        "client_id (inkc_…) for this embedded app:",
+        "client_id (inkid_…) for this embedded app:",
       );
       if (!clientId) return;
       const clientSecret = window.prompt(
