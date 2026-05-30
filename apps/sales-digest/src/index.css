@@ -1,0 +1,37 @@
+@import "@bookerva-apps/core/styles.css";
+
+/* Sales Digest — analytics, schedule, recipients on the shared system. */
+
+.sd-ranges, .sd-range { font-size: 0.8125rem; }
+.sd-ranges { display: inline-flex; gap: 3px; background: var(--panel); padding: 3px; border-radius: 9px; border: 1px solid var(--line); }
+.sd-range { height: 30px; padding: 0 12px; font-weight: 600; border: 0; background: transparent; color: var(--ink-soft); border-radius: 7px; }
+.sd-range:hover { color: var(--ink); background: transparent; }
+.sd-range.is-on { background: var(--surface); color: var(--accent); box-shadow: var(--e1); }
+
+/* daily revenue bars */
+.sd-chart { margin: 16px 0 4px; }
+.sd-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding: 8px 2px 0; }
+.sd-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.sd-bar-fill { width: 100%; max-width: 30px; background: var(--accent); border-radius: 5px 5px 2px 2px; transition: height 0.3s var(--ease); }
+.sd-bar-label { font-size: 0.625rem; color: var(--ink-faint); margin-top: 5px; white-space: nowrap; }
+
+.sd-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+@media (max-width: 640px) { .sd-cols { grid-template-columns: 1fr; } }
+.sd-cols .bv-card { box-shadow: none; background: var(--panel); }
+.sd-kv td { padding: 7px 4px; border-bottom: 1px solid var(--line); }
+.sd-kv tr:last-child td { border-bottom: 0; }
+
+.sd-send { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+
+/* recipients */
+.sd-addrow { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: center; }
+@media (max-width: 560px) { .sd-addrow { grid-template-columns: 1fr; } }
+.sd-toggle input { width: auto; height: auto; transform: scale(1.15); }
+.sd-warn, .sd-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 9px; font-size: 0.8125rem; }
+.sd-warn { background: var(--warn-wash); color: oklch(0.5 0.12 70); margin-top: 14px; }
+.sd-note { background: var(--panel); color: var(--ink-soft); margin: 14px 0 0; }
+
+/* schedule form */
+.sd-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 560px) { .sd-form { grid-template-columns: 1fr; } }
+.sd-field { display: flex; flex-direction: column; gap: 5px; }
