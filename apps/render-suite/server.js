@@ -8,8 +8,9 @@ import { openDb } from "@bookerva-apps/core/db";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
-for (const k of ["OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET", "INKRESS_API_BASE"]) {
-  if (!process.env[k]) { console.error(`[render-suite] Missing env: ${k}`); process.exit(1); }
+if (!process.env.INKRESS_API_BASE) { console.error(`[render-suite] Missing env: INKRESS_API_BASE`); process.exit(1); }
+if (!process.env.OAUTH_CLIENTS && !process.env.OAUTH_CLIENT_ID) {
+  console.error(`[render-suite] Missing env: OAUTH_CLIENTS (or OAUTH_CLIENT_ID)`); process.exit(1);
 }
 
 const db = openDb("render-suite", `
@@ -26,9 +27,22 @@ const db = openDb("render-suite", `
   );
 `);
 
+// OAUTH_CLIENTS is "id1:secret1,id2:secret2,…" — one per path-routed
+// listing (invoices/receipts/donations/gift-cards). The core picks the
+// right one per session token's aud claim.
+const clients = {};
+for (const pair of (process.env.OAUTH_CLIENTS || "").split(",")) {
+  const [id, secret] = pair.split(":");
+  if (id && secret) clients[id.trim()] = secret.trim();
+}
+if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
+  clients[process.env.OAUTH_CLIENT_ID] = process.env.OAUTH_CLIENT_SECRET;
+}
+
 const app = express();
 const core = mountAppCore(app, {
-  clientId: process.env.OAUTH_CLIENT_ID, clientSecret: process.env.OAUTH_CLIENT_SECRET,
+  clients,
+  clientId: Object.keys(clients)[0],
   apiBaseUrl: process.env.INKRESS_API_BASE, frameAncestors: process.env.FRAME_ANCESTORS,
   staticDir: path.join(__dirname, "dist"),
 });

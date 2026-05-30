@@ -7,14 +7,40 @@ import { SessionStore, SESSION_COOKIE } from "./session-store.mjs";
 const DEFAULT_FRAME_ANCESTORS =
   "https://merchant.inkress.com https://dev.inkress.com https://dev.commerce.webapps.host https://*.commerce.webapps.host";
 
+// Decode a JWT payload without verifying (we only need the `aud`
+// claim to pick which client credentials to present; the API verifies
+// the signature during exchange).
+function peekAud(jwt) {
+  try {
+    const part = jwt.split(".")[1];
+    const json = Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    return JSON.parse(json).aud;
+  } catch {
+    return null;
+  }
+}
+
 export function mountAppCore(app, opts) {
   const sessions = new SessionStore();
   const frameAncestors = opts.frameAncestors || DEFAULT_FRAME_ANCESTORS;
-  const cfg = {
-    clientId: opts.clientId,
-    clientSecret: opts.clientSecret,
+
+  // Multi-client support: a single deploy can serve several oauth_clients
+  // (path-routed suites). `opts.clients` maps client_id → client_secret.
+  // Falls back to the single clientId/clientSecret pair.
+  const clientMap =
+    opts.clients && Object.keys(opts.clients).length
+      ? { ...opts.clients }
+      : { [opts.clientId]: opts.clientSecret };
+  const defaultClientId = opts.clientId || Object.keys(clientMap)[0];
+
+  const cfgFor = (clientId) => ({
+    clientId,
+    clientSecret: clientMap[clientId],
     apiBaseUrl: opts.apiBaseUrl,
-  };
+  });
+  // Default cfg (for app code that calls callInkress without a specific
+  // client — the access token is what matters there, not the client id).
+  const cfg = cfgFor(defaultClientId);
 
   app.use(cookieParser());
   app.use(express.json({ limit: "256kb" }));
@@ -32,7 +58,10 @@ export function mountAppCore(app, opts) {
       return res.status(400).json({ error: "missing_session_jwt" });
     }
     try {
-      const token = await exchangeSessionToken(cfg, sessionJwt);
+      // Pick the client credentials matching the session token's aud.
+      const aud = peekAud(sessionJwt);
+      const exchangeCfg = aud && clientMap[aud] ? cfgFor(aud) : cfg;
+      const token = await exchangeSessionToken(exchangeCfg, sessionJwt);
       const entry = sessions.put(token);
       if (opts.preloadMerchant !== false && entry.merchantId > 0) {
         try {
