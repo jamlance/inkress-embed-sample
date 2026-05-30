@@ -1,171 +1,147 @@
+// bookerva-suite — the Inkress merchant's "Bookings" Marketplace app.
+//
+// The whole product surface (services, appointments, public booking page) is
+// owned by Bookerva. This app stays small: it sits in Inkress's iframe-app
+// contract, mints a short-lived HS256 identity token carrying the merchant's
+// profile, and hands the browser a deep-link into Bookerva's /embed/{vertical}.
+// See docs/inkress-embedding-and-verticals.md §13 in the bookerva repo for the
+// JWT shape Bookerva expects.
+
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { mountAppCore } from "@bookerva-apps/core";
-import { openDb } from "@bookerva-apps/core/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
-if (!process.env.INKRESS_API_BASE) { console.error("[bookerva-suite] Missing INKRESS_API_BASE"); process.exit(1); }
 
-const clients = {};
-for (const pair of (process.env.OAUTH_CLIENTS || "").split(/[;,]/)) {
-  const [id, secret] = pair.split(":");
-  if (id && secret) clients[id.trim()] = secret.trim();
+for (const k of [
+  "INKRESS_API_BASE",
+  "SERVICE_TOKEN_SECRET",
+  "BOOKERVA_BASE_URL",
+]) {
+  if (!process.env[k]) {
+    console.error(`[bookerva-suite] Missing env: ${k}`);
+    process.exit(1);
+  }
 }
 
-const db = openDb("bookerva-suite", `
-  CREATE TABLE IF NOT EXISTS merchants_cache (
-    merchant_id INTEGER PRIMARY KEY, username TEXT, name TEXT, logo TEXT, currency TEXT,
-    updated_at TEXT DEFAULT (datetime('now'))
+const SECRET = process.env.SERVICE_TOKEN_SECRET;
+const BOOKERVA_BASE_URL = String(process.env.BOOKERVA_BASE_URL).replace(
+  /\/+$/,
+  "",
+);
+
+// OAuth clients. Accept either the multi-client OAUTH_CLIENTS
+// ("client_id:client_secret;client_id:client_secret") or the singular pair
+// the rest of the repo uses (OAUTH_CLIENT_ID + OAUTH_CLIENT_SECRET) — both
+// land in the same map shape so mountAppCore is happy either way.
+const clients = {};
+if (process.env.OAUTH_CLIENTS) {
+  for (const pair of process.env.OAUTH_CLIENTS.split(/[;,]/)) {
+    const [id, secret] = pair.split(":");
+    if (id && secret) clients[id.trim()] = secret.trim();
+  }
+}
+if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
+  clients[process.env.OAUTH_CLIENT_ID] = process.env.OAUTH_CLIENT_SECRET;
+}
+if (!Object.keys(clients).length) {
+  console.error(
+    "[bookerva-suite] No OAuth client credentials. Set OAUTH_CLIENTS or OAUTH_CLIENT_ID + OAUTH_CLIENT_SECRET.",
   );
-  CREATE TABLE IF NOT EXISTS services (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, merchant_id INTEGER NOT NULL, vertical TEXT NOT NULL,
-    name TEXT NOT NULL, duration_min INTEGER NOT NULL DEFAULT 30, price REAL NOT NULL DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'JMD', resource TEXT, created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, merchant_id INTEGER NOT NULL, vertical TEXT NOT NULL,
-    service_id INTEGER, service_name TEXT, customer TEXT NOT NULL, contact TEXT,
-    starts_at TEXT NOT NULL, ends_at TEXT, resource TEXT, detail TEXT,
-    status TEXT NOT NULL DEFAULT 'booked', source TEXT NOT NULL DEFAULT 'staff',
-    created_by TEXT, created_at TEXT DEFAULT (datetime('now'))
-  );
-  CREATE TABLE IF NOT EXISTS settings (
-    merchant_id INTEGER NOT NULL, vertical TEXT NOT NULL,
-    open_hour INTEGER DEFAULT 9, close_hour INTEGER DEFAULT 17, slot_min INTEGER DEFAULT 30,
-    days TEXT DEFAULT '1,2,3,4,5,6', lead_days INTEGER DEFAULT 30,
-    PRIMARY KEY (merchant_id, vertical)
-  );
-`);
+  process.exit(1);
+}
 
 const app = express();
 const core = mountAppCore(app, {
-  clients, clientId: Object.keys(clients)[0],
-  apiBaseUrl: process.env.INKRESS_API_BASE, frameAncestors: process.env.FRAME_ANCESTORS,
+  clients,
+  clientId: Object.keys(clients)[0],
+  apiBaseUrl: process.env.INKRESS_API_BASE,
+  frameAncestors: process.env.FRAME_ANCESTORS,
   staticDir: path.join(__dirname, "dist"),
-  onBootstrap: (entry) => {
-    const m = entry.data?.merchant;
-    if (m?.id) {
-      db.prepare(`INSERT INTO merchants_cache (merchant_id, username, name, logo, currency)
-        VALUES (?,?,?,?,?) ON CONFLICT(merchant_id) DO UPDATE SET
-        username=excluded.username, name=excluded.name, logo=excluded.logo, currency=excluded.currency, updated_at=datetime('now')`)
-        .run(m.id, m.username || null, m.name || null, m.logo || null, m.currency_code || m.currency?.code || "JMD");
-    }
-  },
 });
 
-const V = (req) => String(req.query.vertical || req.body?.vertical || "basic");
-const getSettings = (mid, v) => db.prepare(`SELECT * FROM settings WHERE merchant_id=? AND vertical=?`).get(mid, v)
-  || { open_hour: 9, close_hour: 17, slot_min: 30, days: "1,2,3,4,5,6", lead_days: 30 };
+// ---- HS256 identity token ---------------------------------------------------
+//
+// Same shape as packages/core/src/bookerva-client.mjs's signServiceToken, plus
+// the optional `profile` claim Bookerva's URL bootstrap reads to provision a
+// fresh tenant without an out-of-band POST.
+function b64url(buf) {
+  return Buffer.from(buf)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
-function slotsForDate(mid, v, serviceId, dateStr) {
-  const s = getSettings(mid, v);
-  const allowDays = String(s.days).split(",").map(Number);
-  const date = new Date(dateStr + "T00:00:00");
-  if (!allowDays.includes(date.getDay())) return [];
-  const svc = serviceId ? db.prepare(`SELECT duration_min FROM services WHERE id=? AND merchant_id=?`).get(serviceId, mid) : null;
-  const dur = svc?.duration_min || s.slot_min;
-  const taken = db.prepare(`SELECT starts_at, ends_at FROM bookings WHERE merchant_id=? AND vertical=? AND status='booked' AND substr(starts_at,1,10)=?`).all(mid, v, dateStr)
-    .map((b) => [new Date(b.starts_at).getTime(), b.ends_at ? new Date(b.ends_at).getTime() : new Date(b.starts_at).getTime() + dur * 60000]);
-  const out = [];
-  const now = Date.now();
-  for (let min = s.open_hour * 60; min + dur <= s.close_hour * 60; min += s.slot_min) {
-    const start = new Date(date); start.setHours(0, min, 0, 0);
-    const st = start.getTime(), en = st + dur * 60000;
-    if (st < now) continue;
-    const clash = taken.some(([ts, te]) => st < te && en > ts);
-    if (!clash) out.push(start.toISOString());
+function signBookervaIdentityToken(externalId, profile) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "HS256" };
+  const payload = {
+    scope: "partner",
+    source: "inkress",
+    externalId: String(externalId),
+    profile,
+    iss: "bookerva",
+    aud: "bookerva-partner",
+    iat: now,
+    // Short enough that a leaked URL token expires before it's useful;
+    // long enough that a slow iframe load + retry still works.
+    exp: now + 15 * 60,
+    jti: crypto.randomUUID(),
+  };
+  const signingInput =
+    b64url(JSON.stringify(header)) + "." + b64url(JSON.stringify(payload));
+  const sig = b64url(
+    crypto.createHmac("sha256", SECRET).update(signingInput).digest(),
+  );
+  return signingInput + "." + sig;
+}
+
+// ---- /api/bookerva-url ------------------------------------------------------
+//
+// Browser-side calls this once after initBv(), then sets <iframe src>. We
+// always mint a fresh JWT — Bookerva swaps it for a `bes_…` session that the
+// fetch interceptor in its embed shell takes over with from that point on.
+app.get("/api/bookerva-url", core.requireSession, (req, res) => {
+  const m = req.session?.data?.merchant;
+  if (!m || !m.id) {
+    return res.status(404).json({
+      error: "no_merchant",
+      message: "Session is missing merchant context.",
+    });
   }
-  return out;
-}
 
-/* ---------------- merchant API (session) ---------------- */
-app.get("/api/overview", core.requireSession, (req, res) => {
-  const v = V(req), mid = req.session.merchantId;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const today = db.prepare(`SELECT COUNT(*) n FROM bookings WHERE merchant_id=? AND vertical=? AND status='booked' AND substr(starts_at,1,10)=?`).get(mid, v, todayStr).n;
-  const upcoming = db.prepare(`SELECT COUNT(*) n FROM bookings WHERE merchant_id=? AND vertical=? AND status='booked' AND starts_at>=?`).get(mid, v, new Date().toISOString()).n;
-  const services = db.prepare(`SELECT COUNT(*) n FROM services WHERE merchant_id=? AND vertical=?`).get(mid, v).n;
-  const next = db.prepare(`SELECT * FROM bookings WHERE merchant_id=? AND vertical=? AND status='booked' AND starts_at>=? ORDER BY starts_at LIMIT 8`).all(mid, v, new Date().toISOString());
-  res.json({ stats: { today, upcoming, services }, next, share_url: `${baseUrl(req)}/book/${mid}?v=${v}` });
-});
+  const vertical = String(req.query.vertical || "generic");
 
-app.get("/api/bookings", core.requireSession, (req, res) => {
-  const rows = db.prepare(`SELECT * FROM bookings WHERE merchant_id=? AND vertical=? ORDER BY starts_at DESC LIMIT 300`).all(req.session.merchantId, V(req));
-  res.json({ bookings: rows });
-});
-app.post("/api/bookings", core.requireSession, (req, res) => {
-  const b = req.body || {};
-  if (!String(b.customer || "").trim() || !b.starts_at) return res.status(400).json({ error: "missing", message: "Customer and time required." });
-  const svc = b.service_id ? db.prepare(`SELECT name, duration_min FROM services WHERE id=? AND merchant_id=?`).get(b.service_id, req.session.merchantId) : null;
-  const ends = svc ? new Date(new Date(b.starts_at).getTime() + svc.duration_min * 60000).toISOString() : null;
-  db.prepare(`INSERT INTO bookings (merchant_id, vertical, service_id, service_name, customer, contact, starts_at, ends_at, resource, detail, source, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(req.session.merchantId, V(req), b.service_id || null, svc?.name || b.service_name || null, b.customer, b.contact || null, b.starts_at, ends, b.resource || null, b.detail || null, "staff", req.actor?.name || "Staff");
-  res.json({ ok: true });
-});
-app.patch("/api/bookings/:id", core.requireSession, (req, res) => {
-  const status = ["booked", "completed", "cancelled", "no_show"].includes(req.body?.status) ? req.body.status : "booked";
-  db.prepare(`UPDATE bookings SET status=? WHERE id=? AND merchant_id=?`).run(status, req.params.id, req.session.merchantId); res.json({ ok: true });
-});
-app.delete("/api/bookings/:id", core.requireSession, (req, res) => {
-  db.prepare(`DELETE FROM bookings WHERE id=? AND merchant_id=?`).run(req.params.id, req.session.merchantId); res.json({ ok: true });
+  // Profile claims travel inside the JWT so Bookerva can provision a tenant
+  // for first-time merchants without a separate POST /api/v1/partner/session.
+  const profile = {
+    name: m.name || m.username || `Inkress Merchant ${m.id}`,
+    email:
+      m.email ||
+      (m.username
+        ? `${m.username}@inkress.local`
+        : `inkress-merchant-${m.id}@inkress.local`),
+    timezone: m.timezone || "America/Jamaica",
+    currency_code: m.currency_code || m.currency?.code || "JMD",
+    locale: m.locale || "en-JM",
+  };
+
+  const jwt = signBookervaIdentityToken(m.id, profile);
+  res.json({
+    url: `${BOOKERVA_BASE_URL}/embed/${encodeURIComponent(vertical)}?t=${encodeURIComponent(jwt)}`,
+    vertical,
+  });
 });
 
-app.get("/api/services", core.requireSession, (req, res) => {
-  res.json({ services: db.prepare(`SELECT * FROM services WHERE merchant_id=? AND vertical=? ORDER BY id`).all(req.session.merchantId, V(req)) });
-});
-app.post("/api/services", core.requireSession, (req, res) => {
-  if (!String(req.body?.name || "").trim()) return res.status(400).json({ error: "no_name", message: "Name required." });
-  db.prepare(`INSERT INTO services (merchant_id, vertical, name, duration_min, price, currency, resource) VALUES (?,?,?,?,?,?,?)`)
-    .run(req.session.merchantId, V(req), req.body.name, Number(req.body.duration_min) || 30, Number(req.body.price) || 0, req.body.currency || "JMD", req.body.resource || null);
-  res.json({ ok: true });
-});
-app.delete("/api/services/:id", core.requireSession, (req, res) => {
-  db.prepare(`DELETE FROM services WHERE id=? AND merchant_id=?`).run(req.params.id, req.session.merchantId); res.json({ ok: true });
-});
-
-app.get("/api/settings", core.requireSession, (req, res) => res.json({ settings: getSettings(req.session.merchantId, V(req)) }));
-app.put("/api/settings", core.requireSession, (req, res) => {
-  const b = req.body || {};
-  db.prepare(`INSERT INTO settings (merchant_id, vertical, open_hour, close_hour, slot_min, days, lead_days)
-    VALUES (?,?,?,?,?,?,?) ON CONFLICT(merchant_id, vertical) DO UPDATE SET
-    open_hour=excluded.open_hour, close_hour=excluded.close_hour, slot_min=excluded.slot_min, days=excluded.days, lead_days=excluded.lead_days`)
-    .run(req.session.merchantId, V(req), Number(b.open_hour) || 9, Number(b.close_hour) || 17, Number(b.slot_min) || 30, b.days || "1,2,3,4,5,6", Number(b.lead_days) || 30);
-  res.json({ ok: true });
-});
-
-/* ---------------- PUBLIC booking API (no auth) ---------------- */
-app.get("/api/public/:mid/info", (req, res) => {
-  const mid = Number(req.params.mid), v = String(req.query.v || "basic");
-  const m = db.prepare(`SELECT merchant_id, name, logo, currency FROM merchants_cache WHERE merchant_id=?`).get(mid);
-  if (!m) return res.status(404).json({ error: "not_found" });
-  const services = db.prepare(`SELECT id, name, duration_min, price, currency, resource FROM services WHERE merchant_id=? AND vertical=? ORDER BY id`).all(mid, v);
-  res.json({ merchant: m, vertical: v, services, settings: getSettings(mid, v) });
-});
-app.get("/api/public/:mid/slots", (req, res) => {
-  const mid = Number(req.params.mid), v = String(req.query.v || "basic");
-  res.json({ slots: slotsForDate(mid, v, Number(req.query.service_id) || null, String(req.query.date || new Date().toISOString().slice(0, 10))) });
-});
-app.post("/api/public/:mid/book", (req, res) => {
-  const mid = Number(req.params.mid), b = req.body || {}, v = String(b.vertical || "basic");
-  if (!String(b.customer || "").trim() || !b.starts_at) return res.status(400).json({ error: "missing", message: "Please enter your name and pick a time." });
-  // Re-check the slot is still free.
-  const free = slotsForDate(mid, v, Number(b.service_id) || null, String(b.starts_at).slice(0, 10));
-  if (!free.includes(b.starts_at)) return res.status(409).json({ error: "taken", message: "Sorry, that time was just taken. Pick another." });
-  const svc = b.service_id ? db.prepare(`SELECT name, duration_min FROM services WHERE id=? AND merchant_id=?`).get(b.service_id, mid) : null;
-  const ends = svc ? new Date(new Date(b.starts_at).getTime() + svc.duration_min * 60000).toISOString() : null;
-  db.prepare(`INSERT INTO bookings (merchant_id, vertical, service_id, service_name, customer, contact, starts_at, ends_at, detail, source, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(mid, v, b.service_id || null, svc?.name || null, b.customer, b.contact || null, b.starts_at, ends, b.detail || null, "online", b.customer);
-  res.json({ ok: true, service: svc?.name || null });
-});
-
-function baseUrl(req) {
-  return `${req.get("x-forwarded-proto") || req.protocol}://${req.get("host")}`;
-}
-
+// SPA fallback — same as every other app in the monorepo.
 core.mountSpaFallback();
-app.listen(PORT, HOST, () => console.log(`[bookerva-suite] listening on ${HOST}:${PORT}`));
+
+app.listen(PORT, HOST, () => {
+  console.log(`[bookerva-suite] listening on ${HOST}:${PORT}`);
+  console.log(`[bookerva-suite] BOOKERVA_BASE_URL=${BOOKERVA_BASE_URL}`);
+});
