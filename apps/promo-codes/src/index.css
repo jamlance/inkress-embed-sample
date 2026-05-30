@@ -1,1 +1,30 @@
 @import "@bookerva-apps/core/styles.css";
+
+/* Promo Codes — code registry + discounted-charge tool. */
+
+.pc-code { font-family: var(--mono); font-size: 0.8125rem; letter-spacing: 0.02em; }
+
+.pc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 520px) { .pc-form-grid { grid-template-columns: 1fr; } }
+.pc-field { display: flex; flex-direction: column; gap: 5px; }
+.pc-field-input { width: 100%; }
+.pc-check { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--ink-soft); }
+.pc-check input { width: auto; height: auto; }
+
+.pc-charge-form { max-width: 560px; }
+.pc-charge { width: 100%; height: 44px; margin-top: 12px; }
+
+.pc-preview { margin: 4px 0 2px; }
+.pc-preview-row { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 12px; border-radius: 9px; background: var(--panel); margin-bottom: 6px; font-size: 0.875rem; }
+.pc-preview-net { background: var(--accent-wash); font-weight: 600; }
+.pc-preview-net b { font-size: 1.0625rem; color: var(--accent); }
+.pc-disc { color: var(--ok); }
+.pc-preview-bad { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 9px; background: var(--warn-wash); color: oklch(0.5 0.12 70); font-size: 0.8125rem; }
+
+.pc-result-sum { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pc-result-net { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
+.pc-detail-meta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; font-size: 0.8125rem; }
+
+.pc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pc-btnlink { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-strong); text-decoration: none; color: inherit; font-size: 0.8125rem; font-weight: 600; }
+.pc-btnlink:hover { background: var(--panel); text-decoration: none; }
