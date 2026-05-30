@@ -33,17 +33,34 @@ function safeSchema(name) {
 
 export async function openPg(appName, schemaSql) {
   const schema = safeSchema(appName);
-  const p = getPool();
-  const client = await p.connect();
-  try {
-    await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
-  } finally {
-    client.release();
+
+  // Ensure the schema + DDL exist, lazily and idempotently. We do NOT connect
+  // at openPg() time: the app must boot even when Postgres is briefly down
+  // (otherwise a transient DB blip crash-loops the whole container into 503s).
+  // The first query triggers this; on failure it resets so the next request
+  // retries, and the app self-heals once the DB returns.
+  let ensured = null;
+  function ensureSchema() {
+    if (ensured) return ensured;
+    ensured = (async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+        if (schemaSql) {
+          await c.query(`SET search_path TO "${schema}"`);
+          await c.query(schemaSql);
+        }
+      } finally {
+        c.release();
+      }
+    })().catch((e) => { ensured = null; throw e; });
+    return ensured;
   }
 
-  // Run the app's DDL with search_path pinned to its schema.
+  // Run a unit of work with the schema's search_path pinned.
   const withSchema = async (fn) => {
-    const c = await p.connect();
+    await ensureSchema();
+    const c = await getPool().connect();
     try {
       await c.query(`SET search_path TO "${schema}"`);
       return await fn(c);
@@ -51,12 +68,10 @@ export async function openPg(appName, schemaSql) {
       c.release();
     }
   };
-  if (schemaSql) {
-    await withSchema((c) => c.query(schemaSql));
-  }
 
   return {
     schema,
+    ensureSchema,
     async q(sql, params = []) {
       return withSchema(async (c) => (await c.query(sql, params)).rows);
     },
@@ -71,7 +86,8 @@ export async function openPg(appName, schemaSql) {
     },
     /** Run several statements in one transaction with the schema pinned. */
     async tx(fn) {
-      const c = await p.connect();
+      await ensureSchema();
+      const c = await getPool().connect();
       try {
         await c.query(`SET search_path TO "${schema}"`);
         await c.query("BEGIN");
