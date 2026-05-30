@@ -14,9 +14,15 @@ const HOST = process.env.HOST ?? "0.0.0.0";
 
 // Allow framing by Inkress dashboards. Override via env if you stand
 // up a private staging dashboard with a different origin.
+//
+// Defaults cover:
+//   - production canonical (merchant.inkress.com)
+//   - dev canonical (dev.inkress.com — what NEXTAUTH_URL is set to)
+//   - Coolify-internal fqdn (*.commerce.webapps.host — useful for the
+//     dserve/pserve sandbox links if the user lands on them directly)
 const FRAME_ANCESTORS =
   process.env.FRAME_ANCESTORS ??
-  "https://merchant.inkress.com https://dev.commerce.webapps.host https://*.commerce.webapps.host";
+  "https://merchant.inkress.com https://dev.inkress.com https://dev.commerce.webapps.host https://*.commerce.webapps.host";
 
 const app = express();
 
