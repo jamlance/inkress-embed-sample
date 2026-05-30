@@ -1,0 +1,16 @@
+@import "@bookerva-apps/core/styles.css";
+
+/* Order Updates — per-event message editors. */
+
+.ou-warn { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border-radius: 9px; background: var(--warn-wash); color: oklch(0.5 0.12 70); font-size: 0.8125rem; }
+.ou-field { display: flex; flex-direction: column; gap: 5px; }
+.ou-hint { font-size: 0.75rem; margin-bottom: 14px; }
+.ou-hint code { font-family: var(--mono); font-size: 0.72rem; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+
+.ou-templates { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .ou-templates { grid-template-columns: 1fr; } }
+.ou-tmpl { padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.ou-tmpl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ou-tmpl input, .ou-tmpl textarea { margin-bottom: 6px; background: var(--surface); }
+.ou-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--ink-soft); }
+.ou-toggle input { width: auto; height: auto; }
