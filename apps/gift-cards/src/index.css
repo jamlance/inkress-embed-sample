@@ -1,0 +1,27 @@
+@import "@bookerva-apps/core/styles.css";
+
+/* Gift Cards — buy-page cards + redemption. */
+
+.gc-code { font-family: var(--mono); font-size: 0.8125rem; letter-spacing: 0.04em; }
+
+.gc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.gc-card { padding: 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); box-shadow: var(--e1); }
+.gc-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.gc-denoms { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+.gc-link { display: flex; gap: 6px; margin-bottom: 10px; }
+.gc-link-input { font-size: 0.72rem; height: 32px; color: var(--ink-soft); }
+.gc-actions { display: flex; gap: 6px; align-items: center; }
+.gc-open { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-soft); }
+.gc-open:hover { background: var(--panel); }
+.gc-note { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+
+.gc-form { display: flex; flex-direction: column; gap: 12px; }
+.gc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gc-field { display: flex; flex-direction: column; gap: 5px; }
+.gc-check { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--ink-soft); }
+.gc-check input { width: auto; height: auto; }
+
+.gc-redeem-result { margin-top: 12px; }
+.gc-balance { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 12px; background: var(--panel); border-radius: 9px; margin-bottom: 10px; }
+.gc-balance b { font-size: 1.125rem; }
+.gc-bad { padding: 9px 12px; border-radius: 9px; background: var(--bad-wash); color: var(--bad); font-size: 0.8125rem; }
