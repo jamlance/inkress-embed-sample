@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { mountAppCore, inkressApi } from "@bookerva-apps/core";
+import { mountAppCore, inkressApi, orderStatusName, isPaidStatus } from "@bookerva-apps/core";
 import { openDb } from "@bookerva-apps/core/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,7 +67,7 @@ app.get("/api/digest/preview", core.requireSession, async (req, res) => {
   try {
     const r = await inkressApi(core.cfg, req.session.accessToken, `orders?limit=200&order=id desc&updated_since=${since}T00:00:00Z`);
     const orders = r?.result?.entries || [];
-    const paid = orders.filter((o) => ["paid","confirmed","completed","delivered","shipped"].includes((o.status_name||o.status||"").toLowerCase()));
+    const paid = orders.filter((o) => isPaidStatus(o));
     const revenue = paid.reduce((s, o) => s + Number(o.total || 0), 0);
     const cur = paid[0]?.currency?.code || paid[0]?.currency_code || "JMD";
     const top = paid.slice().sort((a,b)=>Number(b.total||0)-Number(a.total||0))[0];
@@ -137,7 +137,7 @@ app.get("/api/tagger/apply", core.requireSession, async (req, res) => {
   try {
     const r = await inkressApi(core.cfg, req.session.accessToken, `orders?limit=50&order=id desc`);
     const orders = (r?.result?.entries||[]).map((o) => {
-      const total = Number(o.total||0); const status = (o.status_name||o.status||"").toLowerCase();
+      const total = Number(o.total||0); const status = orderStatusName(o);
       const tags = rules.filter((rl) => total >= rl.min_total && (!rl.status_is || status === rl.status_is.toLowerCase())).map((rl) => rl.label);
       return { ref: o.reference_id||o.id, total, currency: o.currency?.code||o.currency_code||"JMD", status, tags };
     });

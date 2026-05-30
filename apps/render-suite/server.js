@@ -2,7 +2,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { mountAppCore, inkressApi } from "@bookerva-apps/core";
+import { mountAppCore, inkressApi, orderStatusName } from "@bookerva-apps/core";
 import { openDb } from "@bookerva-apps/core/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,7 +57,7 @@ app.get("/api/orders", core.requireSession, async (req, res) => {
       id: o.id, reference_id: o.reference_id || o.id,
       customer: o.customer?.full_name || [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(" ") || o.customer?.email || "Customer",
       total: Number(o.total || 0), currency: o.currency?.code || o.currency_code || "JMD",
-      status: o.status_name || o.status || "", created: (o.inserted_at || "").slice(0, 10),
+      status: orderStatusName(o), created: (o.inserted_at || "").slice(0, 10),
       lines: (o.order_lines || o.lines || []).map((l) => ({
         title: l.title || l.name || l.product?.title || "Item", qty: Number(l.quantity || l.qty || 1),
         price: Number(l.price || l.unit_price || 0),

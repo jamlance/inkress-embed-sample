@@ -16,7 +16,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { mountAppCore, inkressApi } from "@bookerva-apps/core";
+import { mountAppCore, inkressApi, orderStatusName } from "@bookerva-apps/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,14 +86,12 @@ app.get("/api/order-rollups", core.requireSession, async (req, res) => {
     const orders = r?.result?.entries || [];
 
     const buckets = new Map();
-    const norm = (status) => {
+    const norm = (o) => {
       // Map Inkress's order status to coarse buckets we care about.
-      // Anything paid+ counts as paid; anything refunded counts as refunded;
-      // anything not-yet-paid counts as pending.
-      const s = (status || "").toLowerCase();
+      const s = orderStatusName(o);
       if (["paid", "confirmed", "prepared", "shipped", "delivered", "completed"].includes(s))
         return "paid";
-      if (["refunded"].includes(s)) return "refunded";
+      if (s === "refunded" || s === "returned") return "refunded";
       if (["pending", "verifying", "partial"].includes(s)) return "pending";
       return null;
     };
@@ -108,7 +106,7 @@ app.get("/api/order-rollups", core.requireSession, async (req, res) => {
         pending_total: 0,
       };
       const total = Number(o.total || 0);
-      const kind = norm(o.status_name || o.status);
+      const kind = norm(o);
       if (kind === "paid") {
         bucket.paid_count += 1;
         bucket.paid_total += total;

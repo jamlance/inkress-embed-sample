@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { mountAppCore, inkressApi } from "@bookerva-apps/core";
+import { mountAppCore, inkressApi, isPaidStatus } from "@bookerva-apps/core";
 import { openDb } from "@bookerva-apps/core/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,8 +56,7 @@ app.get("/api/summary", core.requireSession, async (req, res) => {
       `orders?limit=500&order=id desc&updated_since=${encodeURIComponent(since + "T00:00:00Z")}`);
     const orders = r?.result?.entries || [];
     for (const o of orders) {
-      const s = (o.status_name || o.status || "").toLowerCase();
-      if (["paid", "confirmed", "prepared", "shipped", "delivered", "completed"].includes(s)) {
+      if (isPaidStatus(o)) {
         revenue += Number(o.total || 0);
         primaryCurrency = (o.currency?.code || o.currency_code || primaryCurrency);
       }
