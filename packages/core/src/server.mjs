@@ -167,5 +167,6 @@ export {
   createInkressOrder,
   getInkressOrder,
   listInkressOrders,
+  refreshAccessToken,
 } from "./inkress-api.mjs";
 export { SessionStore, SESSION_COOKIE } from "./session-store.mjs";

@@ -13,6 +13,7 @@
     "./db": "./src/db.mjs",
     "./pgdb": "./src/pgdb.mjs",
     "./ses": "./src/ses.mjs",
+    "./merchant-tokens": "./src/merchant-tokens.mjs",
     "./bookerva": "./src/bookerva-client.mjs",
     "./browser": "./src/browser.ts",
     "./ui": "./src/ui.ts",

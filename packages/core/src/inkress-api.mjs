@@ -33,6 +33,35 @@ export async function exchangeSessionToken(cfg, sessionJwt, opts = {}) {
   return await r.json();
 }
 
+/**
+ * Refresh-token grant. Exchanges a stored refresh_token for a fresh access
+ * token (and possibly a rotated refresh_token). Lets public no-auth pages act
+ * on a merchant's behalf without a live dashboard session. Requires the app's
+ * OAuth client to hold `offline_access` so the original exchange returned a
+ * refresh_token. Returns the raw token response {access_token, refresh_token?,
+ * expires_in, ...}.
+ */
+export async function refreshAccessToken(cfg, refreshToken) {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: cfg.clientId,
+    client_secret: cfg.clientSecret,
+  });
+  const tokenUrl = `${stripTrailingSlash(cfg.apiBaseUrl)}/hooks/oauth/token`;
+  const r = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!r.ok) {
+    let detail;
+    try { detail = await r.json(); } catch { detail = await r.text(); }
+    throw new InkressApiError(detail?.error || `http_${r.status}`, detail?.error_description || `Refresh failed (HTTP ${r.status})`);
+  }
+  return await r.json();
+}
+
 export async function inkressApi(cfg, accessToken, path, init = {}) {
   const url = `${stripTrailingSlash(cfg.apiBaseUrl)}/${stripLeadingSlash(path)}`;
   const r = await fetch(url, {
