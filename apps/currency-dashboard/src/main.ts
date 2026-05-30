@@ -1,183 +1,150 @@
-/**
- * Currency Dashboard — single-screen view of wallet balances + recent
- * order totals broken out by currency. Read-only. No persistence
- * beyond the live Inkress data.
- *
- * Calls the merchant's own server (`/api/balances`, `/api/orders`)
- * which proxies into Inkress with the session-cookie's access token.
- */
-
 import "./index.css";
-import { initBv, bvApi, makeToast } from "./bv-init";
+import {
+  initBv, bvApi, makeToast, type BvToastFn,
+  mountShell, statRow, dataTable, card, flash,
+  fmtMoney, relTime, pill, emptyState, h, iconEl,
+} from "./bv-init";
 
-interface Balance {
-  currency_code: string;
-  available: number;
-  pending: number;
-}
-
-interface OrderRollup {
-  currency_code: string;
-  paid_count: number;
-  paid_total: number;
-  refunded_total: number;
-  pending_total: number;
-}
+interface CurStat { currency: string; revenue: number; paid: number; orders: number; refunds: number; aov: number; }
+interface Summary { range: string; currencies: CurStat[]; trend: Record<string, any>[]; currency_codes: string[]; }
+interface Balance { currency: string; available: number; pending: number; }
+interface Order { id: number; ref: string; total: number; currency: string; status: string; customer: string | null; created_at: string | null; }
 
 const root = document.getElementById("root")!;
+let toast: BvToastFn;
+let merchantName = "Merchant";
+let baseCurrency = "JMD";
+let range = "30d";
+let orderCur = "";
+let shell: ReturnType<typeof mountShell>;
+
+const RANGES: [string, string][] = [["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"]];
+const ACCENTS = ["var(--accent)", "oklch(0.6 0.14 155)", "oklch(0.62 0.14 70)", "oklch(0.55 0.2 25)", "oklch(0.55 0.16 295)"];
 
 (async () => {
   let session;
-  try {
-    session = await initBv();
-  } catch (err: any) {
-    renderFatal(err);
-    return;
+  if (import.meta.env.DEV && !new URLSearchParams(location.search).has("inkress_session")) {
+    const m = await import("./dev-mock"); m.installMockFetch(); session = m.mockSession();
+  } else {
+    try { session = await initBv(); }
+    catch (err: any) { root.innerHTML = ""; root.append(fatal(err?.message)); return; }
   }
-  const toast = makeToast(session.inkress);
-  renderShell(session);
+  toast = makeToast(session.inkress);
+  merchantName = session.merchant.name || session.merchant.username || "Merchant";
+  baseCurrency = session.merchant.currency_code || "JMD";
 
-  try {
-    const [balances, rollups] = await Promise.all([
-      bvApi<{ balances: Balance[] }>("/api/balances").catch(() => ({ balances: [] })),
-      bvApi<{ rollups: OrderRollup[]; window_days: number }>("/api/order-rollups").catch(
-        () => ({ rollups: [], window_days: 30 }),
-      ),
-    ]);
-    renderData(balances.balances, rollups.rollups, rollups.window_days);
-  } catch (err: any) {
-    toast(`Couldn't load data: ${err?.message || "unknown"}`, "error");
-  }
+  shell = mountShell({
+    brandIcon: "coins",
+    title: "Currency Dashboard",
+    subtitle: `${merchantName} · money across every currency`,
+    poweredBy: "Marketplace",
+    tabs: [
+      { id: "overview", label: "Overview", icon: "pie", render: renderOverview },
+      { id: "orders", label: "Orders", icon: "list", render: renderOrders },
+    ],
+  });
 })();
 
-function renderFatal(err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  const code = (err as any)?.code ?? "bootstrap_error";
-  root.innerHTML = `
-    <div class="bv-shell">
-      <div class="bv-card" style="text-align:center;">
-        <h1>Couldn't load Currency Dashboard</h1>
-        <p class="bv-muted">${escapeHtml(message)}</p>
-        <p class="bv-muted"><span class="bv-mono">${escapeHtml(code)}</span></p>
-      </div>
-    </div>`;
+/* ------------------------------------------------------------------ Overview */
+async function renderOverview(host: HTMLElement) {
+  const rangeBar = h("div", { class: "cd-ranges" },
+    ...RANGES.map(([v, l]) => h("button", { class: "cd-range" + (range === v ? " is-on" : ""), onClick: () => { range = v; shell.select("overview"); } }, l)));
+
+  const balHost = h("div");
+  const sumHost = h("div");
+  host.append(card({ title: "Wallet", body: balHost }), card({ title: "Sales by currency", action: rangeBar, body: sumHost }));
+
+  // balances
+  balHost.append(h("div", { class: "bv-muted", style: { padding: "8px 2px" } }, "Loading…"));
+  bvApi<{ balances: Balance[]; available: boolean }>("/api/balances").then((b) => {
+    balHost.innerHTML = "";
+    if (!b.available || !b.balances.length) { balHost.append(h("div", { class: "bv-muted", style: { padding: "6px 2px" } }, "Wallet balance isn't available for this account.")); return; }
+    const grid = h("div", { class: "cd-balances" });
+    for (const bal of b.balances) {
+      grid.append(h("div", { class: "cd-balance" },
+        h("div", { class: "cd-cur" }, bal.currency),
+        h("div", { class: "cd-amt" }, fmtMoney(bal.available, bal.currency)),
+        h("div", { class: "bv-muted" }, `${fmtMoney(bal.pending, bal.currency)} pending`)));
+    }
+    balHost.append(grid);
+  }).catch(() => { balHost.innerHTML = ""; balHost.append(h("div", { class: "bv-muted" }, "Wallet balance unavailable.")); });
+
+  // summary
+  sumHost.append(h("div", { class: "bv-muted", style: { padding: "12px 2px" } }, "Loading…"));
+  let s: Summary;
+  try { s = await bvApi(`/api/summary?range=${range}`); }
+  catch (err: any) { sumHost.innerHTML = ""; sumHost.append(emptyState({ icon: "alert", title: "Couldn't load", text: err?.message })); return; }
+  sumHost.innerHTML = "";
+  if (!s.currencies.length) { sumHost.append(emptyState({ icon: "coins", title: "No sales in this range", text: "Pick a wider range or take some orders." })); return; }
+
+  // headline (top currency)
+  const top = s.currencies[0]!;
+  sumHost.append(statRow([
+    { k: "Currencies", v: String(s.currencies.length), icon: "coins" },
+    { k: `${top.currency} revenue`, v: fmtMoney(top.revenue, top.currency), tone: "ok", icon: "chart" },
+    { k: "Paid orders", v: String(s.currencies.reduce((a, c) => a + c.paid, 0)), icon: "receipt" },
+    { k: "Refunds", v: String(s.currencies.reduce((a, c) => a + c.refunds, 0)), tone: s.currencies.some((c) => c.refunds) ? "bad" : undefined, icon: "wallet" },
+  ]));
+
+  if (s.trend.length > 1) sumHost.append(h("div", { class: "cd-chart" }, trendChart(s.trend, s.currency_codes)));
+
+  sumHost.append(dataTable<CurStat>({
+    columns: [
+      { head: "Currency", cell: (c) => h("strong", null, c.currency) },
+      { head: "Revenue", num: true, cell: (c) => fmtMoney(c.revenue, c.currency) },
+      { head: "Paid", num: true, cell: (c) => String(c.paid) },
+      { head: "Avg order", num: true, cell: (c) => fmtMoney(c.aov, c.currency) },
+      { head: "Refunds", num: true, cell: (c) => c.refunds ? pill(String(c.refunds), "bad") : "—" },
+    ],
+    rows: s.currencies,
+    onRowClick: (c) => { orderCur = c.currency; shell.select("orders"); },
+  }));
 }
 
-function renderShell(s: Awaited<ReturnType<typeof initBv>>) {
-  root.innerHTML = `
-    <div class="bv-shell">
-      <header class="bv-header">
-        <div>
-          <h1>Currency Dashboard</h1>
-          <p class="bv-muted">${escapeHtml(s.merchant.name || s.merchant.username || "Merchant")}
-            · Primary currency <span class="bv-pill" data-tone="primary">${escapeHtml(s.merchant.currency_code || "JMD")}</span>
-          </p>
-        </div>
-        <span class="bv-pill">by Bookerva</span>
-      </header>
-
-      <section>
-        <h2 class="bv-section-title">Wallet balances</h2>
-        <div id="balances" class="bv-grid bv-grid-3">${skeletonCards(3)}</div>
-      </section>
-
-      <section>
-        <h2 class="bv-section-title">Sales by currency · <span id="window-label">last 30 days</span></h2>
-        <div id="rollups" class="bv-card">
-          <div class="bv-skeleton" style="width: 60%; margin-bottom: 8px;"></div>
-          <div class="bv-skeleton" style="width: 80%;"></div>
-        </div>
-      </section>
-    </div>
-  `;
-}
-
-function renderData(
-  balances: Balance[],
-  rollups: OrderRollup[],
-  windowDays: number,
-) {
-  const bEl = document.getElementById("balances")!;
-  const rEl = document.getElementById("rollups")!;
-  document.getElementById("window-label")!.textContent = `last ${windowDays} days`;
-
-  if (!balances.length) {
-    bEl.innerHTML = `
-      <div class="bv-card bv-empty">No wallets yet.</div>`;
-  } else {
-    bEl.innerHTML = balances
-      .map(
-        (b) => `
-        <div class="bv-card">
-          <div class="bv-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;">${escapeHtml(b.currency_code)}</div>
-          <div style="font-size:24px;font-weight:600;margin:6px 0 2px;">${fmt(b.available, b.currency_code)}</div>
-          <div class="bv-muted">${fmt(b.pending, b.currency_code)} pending</div>
-        </div>`,
-      )
-      .join("");
+function trendChart(trend: Record<string, any>[], codes: string[]) {
+  const max = Math.max(...trend.map((d) => codes.reduce((a, c) => a + (d[c] || 0), 0)), 1);
+  const wrap = h("div", { class: "cd-bars" });
+  for (const d of trend) {
+    const stack = h("div", { class: "cd-bar-stack" });
+    codes.forEach((c, i) => {
+      const v = d[c] || 0; if (!v) return;
+      stack.append(h("div", { class: "cd-seg", title: `${d.date} · ${c}: ${fmtMoney(v, c)}`, style: { height: `${Math.round((v / max) * 100)}%`, background: ACCENTS[i % ACCENTS.length] } }));
+    });
+    wrap.append(h("div", { class: "cd-bar" }, stack, h("div", { class: "cd-bar-label" }, String(d.date).slice(5))));
   }
-
-  if (!rollups.length) {
-    rEl.innerHTML = `<div class="bv-empty">No order activity in the last ${windowDays} days.</div>`;
-    return;
-  }
-  rEl.innerHTML = `
-    <table class="bv-table">
-      <thead>
-        <tr>
-          <th>Currency</th>
-          <th>Paid</th>
-          <th>Orders</th>
-          <th>Refunded</th>
-          <th>Pending</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rollups
-          .map(
-            (r) => `
-            <tr>
-              <td><span class="bv-pill" data-tone="primary">${escapeHtml(r.currency_code)}</span></td>
-              <td>${fmt(r.paid_total, r.currency_code)}</td>
-              <td>${r.paid_count}</td>
-              <td>${r.refunded_total ? fmt(r.refunded_total, r.currency_code) : "—"}</td>
-              <td>${r.pending_total ? fmt(r.pending_total, r.currency_code) : "—"}</td>
-            </tr>`,
-          )
-          .join("")}
-      </tbody>
-    </table>`;
+  const legend = h("div", { class: "cd-legend" }, ...codes.map((c, i) => h("span", { class: "cd-leg" }, h("i", { style: { background: ACCENTS[i % ACCENTS.length] } }), c)));
+  return h("div", null, wrap, codes.length > 1 ? legend : null);
 }
 
-function skeletonCards(n: number) {
-  return Array.from({ length: n })
-    .map(
-      () => `
-      <div class="bv-card">
-        <div class="bv-skeleton" style="width: 40%;"></div>
-        <div class="bv-skeleton" style="width: 70%; height: 24px; margin-top: 6px;"></div>
-        <div class="bv-skeleton" style="width: 40%; margin-top: 6px;"></div>
-      </div>`,
-    )
-    .join("");
-}
-
-function fmt(n: number, currency: string): string {
-  if (n == null || Number.isNaN(n)) return "—";
+/* -------------------------------------------------------------------- Orders */
+async function renderOrders(host: HTMLElement) {
+  host.append(h("div", { class: "bv-muted", style: { padding: "12px 2px" } }, "Loading…"));
+  let data: { orders: Order[] };
+  let codes: string[] = [];
   try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return `${n.toFixed(2)} ${currency}`;
-  }
+    [data] = await Promise.all([bvApi<{ orders: Order[] }>(`/api/orders${orderCur ? `?currency=${orderCur}` : ""}`)]);
+    codes = [...new Set((await bvApi<{ orders: Order[] }>("/api/orders")).orders.map((o) => o.currency))];
+  } catch (err: any) { host.innerHTML = ""; host.append(emptyState({ icon: "alert", title: "Couldn't load orders", text: err?.message })); return; }
+  host.innerHTML = "";
+
+  const filters = h("div", { class: "cd-filters" },
+    h("button", { class: "cd-filter" + (orderCur === "" ? " is-on" : ""), onClick: () => { orderCur = ""; shell.select("orders"); } }, "All"),
+    ...codes.map((c) => h("button", { class: "cd-filter" + (orderCur === c ? " is-on" : ""), onClick: () => { orderCur = c; shell.select("orders"); } }, c)));
+
+  host.append(card({
+    title: "Orders", action: filters,
+    body: data.orders.length ? dataTable<Order>({
+      columns: [
+        { head: "Order", cell: (o) => h("div", null, h("strong", null, `#${o.ref}`), o.customer ? h("div", { class: "bv-muted" }, o.customer) : null) },
+        { head: "Amount", num: true, cell: (o) => h("span", null, fmtMoney(o.total, o.currency), h("span", { class: "cd-tag" }, o.currency)) },
+        { head: "Status", cell: (o) => pill(o.status, o.status === "paid" || o.status === "completed" ? "ok" : o.status === "refunded" || o.status === "cancelled" ? "bad" : undefined) },
+        { head: "When", cell: (o) => h("span", { class: "bv-muted" }, o.created_at ? relTime(o.created_at) : "—") },
+      ],
+      rows: data.orders,
+    }) : emptyState({ icon: "receipt", title: "No orders", text: "No orders in this currency yet." }),
+  }));
 }
 
-function escapeHtml(s: string): string {
-  return String(s).replace(/[&<>"]/g, (c) =>
-    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;",
-  );
+function fatal(msg?: string) {
+  return h("div", { class: "bv-empty", style: { margin: "40px auto" } }, h("h3", null, "Currency Dashboard couldn't load"), h("p", null, msg || "Open this app from the Inkress dashboard."));
 }

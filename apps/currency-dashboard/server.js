@@ -1,37 +1,16 @@
-/**
- * Currency Dashboard backend.
- *
- * Mounts the shared @bookerva-apps/core helpers (session exchange,
- * cookie-bound merchant context, embed-friendly CSP), then adds two
- * read-only API endpoints the iframe calls:
- *
- *   GET  /api/balances       → wallet balances per currency
- *   GET  /api/order-rollups  → paid / refunded / pending totals per
- *                              currency over the last 30 days
- *
- * The Inkress access token never leaves this server; the browser
- * only holds the bv_app_session cookie.
- */
-
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { mountAppCore, inkressApi, orderStatusName } from "@bookerva-apps/core";
+import { mountAppCore, inkressApi, orderStatusName, isPaidStatus } from "@bookerva-apps/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
-
-const required = ["OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET", "INKRESS_API_BASE"];
-const missing = required.filter((k) => !process.env[k]);
-if (missing.length) {
-  console.error(`[currency-dashboard] Missing env: ${missing.join(", ")}`);
-  process.exit(1);
+for (const k of ["OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET", "INKRESS_API_BASE"]) {
+  if (!process.env[k]) { console.error(`[currency-dashboard] Missing env: ${k}`); process.exit(1); }
 }
 
 const app = express();
-
 const core = mountAppCore(app, {
   clientId: process.env.OAUTH_CLIENT_ID,
   clientSecret: process.env.OAUTH_CLIENT_SECRET,
@@ -40,95 +19,75 @@ const core = mountAppCore(app, {
   staticDir: path.join(__dirname, "dist"),
 });
 
-// --- Balances ----------------------------------------------------------
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const RANGES = { "7d": 7, "30d": 30, "90d": 90 };
+const curOf = (o) => o.currency?.code || o.currency_code || "JMD";
+
+// --- Wallet balances (best-effort) ----------------------------------------
 app.get("/api/balances", core.requireSession, async (req, res) => {
   try {
-    const r = await inkressApi(core.cfg, req.session.accessToken, "merchants/account/balances", {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    // Normalise — the API returns a single balance object today (multi-
-    // currency support varies). Wrap to an array for the dashboard.
+    const r = await inkressApi(core.cfg, req.session.accessToken, "merchants/account/balances", { method: "POST", body: JSON.stringify({}) });
     const raw = r?.result || r || {};
     const balances = Array.isArray(raw)
-      ? raw
-      : raw.currency
-        ? [
-            {
-              currency_code: raw.currency,
-              available: Number(raw.available || 0),
-              pending: Number(raw.pending || 0),
-            },
-          ]
+      ? raw.map((b) => ({ currency: b.currency_code || b.currency, available: round2(b.available), pending: round2(b.pending) }))
+      : (raw.currency || raw.available != null)
+        ? [{ currency: raw.currency_code || raw.currency || "JMD", available: round2(raw.available), pending: round2(raw.pending) }]
         : [];
-    res.json({ balances });
+    res.json({ balances, available: true });
   } catch (err) {
-    res.status(502).json({ error: "balances_failed", message: err?.message });
+    res.json({ balances: [], available: false, reason: err?.message });
   }
 });
 
-// --- Order rollups ----------------------------------------------------
-app.get("/api/order-rollups", core.requireSession, async (req, res) => {
-  const windowDays = 30;
-  const since = new Date(Date.now() - windowDays * 86400 * 1000)
-    .toISOString()
-    .slice(0, 19) + "Z";
-
+// --- Per-currency sales summary -------------------------------------------
+app.get("/api/summary", core.requireSession, async (req, res) => {
+  const days = RANGES[req.query.range] || 30;
+  const since = Date.now() - days * 86400 * 1000;
   try {
-    // Pull recent orders, group by currency_code + status. We deliberately
-    // cap at 500 to keep this fast; merchants with bigger volumes see
-    // the most recent 500-paid-equivalents which is fine for a glance.
-    const r = await inkressApi(
-      core.cfg,
-      req.session.accessToken,
-      `orders?limit=500&order=id desc&updated_since=${encodeURIComponent(since)}`,
-    );
-    const orders = r?.result?.entries || [];
+    const r = await inkressApi(core.cfg, req.session.accessToken, `orders?limit=500&order=id desc`);
+    const all = (r?.result?.entries || []).filter((o) => new Date(o.inserted_at || o.created_at || 0).getTime() >= since);
 
-    const buckets = new Map();
-    const norm = (o) => {
-      // Map Inkress's order status to coarse buckets we care about.
-      const s = orderStatusName(o);
-      if (["paid", "confirmed", "prepared", "shipped", "delivered", "completed"].includes(s))
-        return "paid";
-      if (s === "refunded" || s === "returned") return "refunded";
-      if (["pending", "verifying", "partial"].includes(s)) return "pending";
-      return null;
-    };
-
-    for (const o of orders) {
-      const cc = (o.currency?.code || o.currency_code || "JMD").toUpperCase();
-      const bucket = buckets.get(cc) || {
-        currency_code: cc,
-        paid_count: 0,
-        paid_total: 0,
-        refunded_total: 0,
-        pending_total: 0,
-      };
-      const total = Number(o.total || 0);
-      const kind = norm(o);
-      if (kind === "paid") {
-        bucket.paid_count += 1;
-        bucket.paid_total += total;
-      } else if (kind === "refunded") {
-        bucket.refunded_total += total;
-      } else if (kind === "pending") {
-        bucket.pending_total += total;
+    const byCur = new Map();
+    const byDay = new Map();
+    for (const o of all) {
+      const c = curOf(o);
+      const m = byCur.get(c) || { currency: c, revenue: 0, paid: 0, orders: 0, refunds: 0 };
+      m.orders++;
+      if (orderStatusName(o) === "refunded") m.refunds++;
+      if (isPaidStatus(o)) {
+        m.paid++; m.revenue = round2(m.revenue + Number(o.total || 0));
+        const d = new Date(o.inserted_at || o.created_at || 0).toISOString().slice(0, 10);
+        const day = byDay.get(d) || {};
+        day[c] = round2((day[c] || 0) + Number(o.total || 0));
+        byDay.set(d, day);
       }
-      buckets.set(cc, bucket);
+      byCur.set(c, m);
     }
-
-    const rollups = Array.from(buckets.values()).sort(
-      (a, b) => b.paid_total - a.paid_total,
-    );
-    res.json({ rollups, window_days: windowDays });
+    const currencies = [...byCur.values()].map((m) => ({ ...m, aov: m.paid ? round2(m.revenue / m.paid) : 0 })).sort((a, b) => b.revenue - a.revenue);
+    const trend = [...byDay.entries()].sort().map(([date, vals]) => ({ date, ...vals }));
+    res.json({ range: req.query.range || "30d", currencies, trend, currency_codes: currencies.map((c) => c.currency) });
   } catch (err) {
-    res.status(502).json({ error: "rollups_failed", message: err?.message });
+    res.status(502).json({ error: "summary_failed", message: err?.message });
+  }
+});
+
+// --- Orders list (cross-currency) -----------------------------------------
+app.get("/api/orders", core.requireSession, async (req, res) => {
+  const cur = req.query.currency ? String(req.query.currency) : null;
+  try {
+    const r = await inkressApi(core.cfg, req.session.accessToken, `orders?limit=100&order=id desc`);
+    let orders = (r?.result?.entries || []).map((o) => ({
+      id: o.id, ref: o.reference_id || String(o.id),
+      total: round2(o.total), currency: curOf(o), status: orderStatusName(o),
+      customer: o.customer ? ([o.customer.first_name, o.customer.last_name].filter(Boolean).join(" ") || o.customer.email) : null,
+      created_at: o.inserted_at || o.created_at || null,
+    }));
+    if (cur) orders = orders.filter((o) => o.currency === cur);
+    res.json({ orders });
+  } catch (err) {
+    res.status(502).json({ error: "orders_failed", message: err?.message });
   }
 });
 
 core.mountSpaFallback();
-
-app.listen(PORT, HOST, () => {
-  console.log(`[currency-dashboard] listening on http://${HOST}:${PORT}`);
-});
+app.listen(PORT, HOST, () => console.log(`[currency-dashboard] listening on ${HOST}:${PORT}`));
