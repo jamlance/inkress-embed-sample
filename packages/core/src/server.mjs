@@ -71,6 +71,10 @@ export function mountAppCore(app, opts) {
           /* ignore */
         }
       }
+      // Header-based session: return the opaque id in the body. The
+      // iframe keeps it in memory + sessionStorage and sends it as
+      // X-BV-Session. We still set a cookie too (harmless; works for
+      // non-iframe/local use) but never depend on it.
       res.cookie(SESSION_COOKIE, entry.sessionId, {
         httpOnly: true,
         secure: true,
@@ -80,6 +84,7 @@ export function mountAppCore(app, opts) {
       });
       res.json({
         ok: true,
+        session_id: entry.sessionId,
         merchant: entry.data.merchant ?? null,
         merchant_id: entry.merchantId,
         scopes: entry.scope,
@@ -98,8 +103,14 @@ export function mountAppCore(app, opts) {
     res.json({ ok: true });
   });
 
+  // Resolve a session from the X-BV-Session header (primary, works in
+  // cross-site iframes) or the cookie (fallback for same-site use).
+  const resolveSession = (req) =>
+    sessions.get(req.get("x-bv-session")) ||
+    sessions.get(req.cookies?.[SESSION_COOKIE]);
+
   app.get("/__bv/me", (req, res) => {
-    const entry = sessions.get(req.cookies?.[SESSION_COOKIE]);
+    const entry = resolveSession(req);
     if (!entry) return res.status(401).json({ error: "no_session" });
     res.json({
       merchant: entry.data.merchant ?? null,
@@ -110,7 +121,7 @@ export function mountAppCore(app, opts) {
   });
 
   const requireSession = (req, res, next) => {
-    const entry = sessions.get(req.cookies?.[SESSION_COOKIE]);
+    const entry = resolveSession(req);
     if (!entry) return res.status(401).json({ error: "no_session" });
     req.session = entry;
     next();

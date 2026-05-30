@@ -57,9 +57,10 @@ async function refresh() {
         <td>${fmtSize(d.size)}</td>
         <td class="bv-muted">${esc(d.created_at.slice(0, 10))}</td>
         <td style="text-align:right;white-space:nowrap;">
-          <a href="/api/docs/${d.id}/download"><button>Download</button></a>
+          <button data-dl="${d.id}" data-name="${esc(d.filename)}">Download</button>
           <button data-del="${d.id}" class="destructive">Delete</button>
         </td></tr>`).join("")}</tbody></table>`;
+    el.querySelectorAll<HTMLButtonElement>("button[data-dl]").forEach((b) => b.addEventListener("click", () => onDownload(b.dataset.dl!, b.dataset.name!)));
     el.querySelectorAll<HTMLButtonElement>("button[data-del]").forEach((b) => b.addEventListener("click", () => onDelete(b.dataset.del!)));
   } catch (err: any) { document.getElementById("list")!.innerHTML = `<div class="bv-empty">Couldn't load: ${esc(err?.message || "error")}</div>`; }
 }
@@ -86,6 +87,21 @@ async function onUpload(e: Event) {
 async function onDelete(id: string) {
   try { await bvApi(`/api/docs/${id}`, { method: "DELETE" }); toast("Deleted", "success"); await refresh(); }
   catch (err: any) { toast(err?.message || "error", "error"); }
+}
+
+async function onDownload(id: string, filename: string) {
+  // Anchor downloads can't carry the X-BV-Session header, so fetch the
+  // file with the header and stream it into a blob URL.
+  const sessionId = sessionStorage.getItem("bv_app_session_id") || "";
+  try {
+    const r = await fetch(`/api/docs/${id}/download`, { headers: { "X-BV-Session": sessionId } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (err: any) { toast(err?.message || "Download failed", "error"); }
 }
 
 function fileToBase64(file: File): Promise<string> {

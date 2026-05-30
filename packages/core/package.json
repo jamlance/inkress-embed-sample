@@ -11,6 +11,7 @@
     "./inkress-api": "./src/inkress-api.mjs",
     "./session-store": "./src/session-store.mjs",
     "./db": "./src/db.mjs",
+    "./browser": "./src/browser.ts",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
