@@ -1,0 +1,57 @@
+@import "@bookerva-apps/core/styles.css";
+
+/* Order Tagger — chips, filters, rule builder on the shared system. */
+
+.tg-toolbar { display: flex; gap: 8px; align-items: center; }
+.tg-search { width: 220px; max-width: 50vw; }
+
+.tg-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 14px; }
+.tg-filter {
+  height: 28px; padding: 0 11px; font-size: 0.78rem; font-weight: 600;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+}
+.tg-filter:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface); }
+.tg-filter.is-on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+
+/* tag chips */
+.tg-tags { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.tg-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 24px; padding: 0 8px; border-radius: 7px;
+  background: var(--accent-wash); color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
+  font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+}
+.tg-tag.is-suggested {
+  background: transparent; color: var(--ink-soft);
+  border: 1px dashed var(--line-strong); cursor: pointer;
+}
+.tg-tag.is-suggested:hover { color: var(--accent); border-color: var(--accent); }
+.tg-tag-x { width: 16px; height: 16px; padding: 0; border: 0; background: transparent; color: inherit; opacity: 0.7; border-radius: 4px; }
+.tg-tag-x:hover { opacity: 1; background: color-mix(in oklch, var(--accent) 16%, transparent); }
+.tg-tag-add {
+  width: 24px; height: 24px; padding: 0; border: 1px dashed var(--line-strong);
+  background: transparent; color: var(--ink-faint); border-radius: 7px;
+}
+.tg-tag-add:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+
+.tg-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tg-quick .tg-tag { cursor: pointer; }
+
+/* order detail */
+.tg-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.tg-detail-head strong { font-size: 0.9375rem; }
+.tg-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; }
+.tg-lines { width: 100%; }
+.tg-lines td { padding: 8px 4px; }
+.tg-lines-total td { border-top: 1px solid var(--line-strong); border-bottom: 0; }
+
+.tg-history { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.tg-history-row { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; flex-wrap: wrap; }
+
+/* rules */
+.tg-ruleform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .tg-ruleform-grid { grid-template-columns: 1fr; } }
+.tg-field { display: flex; flex-direction: column; gap: 5px; }
+.tg-check { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; font-size: 0.8125rem; color: var(--ink-soft); }
+.tg-check input { width: auto; height: auto; }
