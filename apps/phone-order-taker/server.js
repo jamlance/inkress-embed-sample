@@ -116,11 +116,18 @@ app.get("/api/products", core.requireSession, async (req, res) => {
     const r = await inkressApi(core.cfg, req.session.accessToken,
       `products?limit=50&order=id desc${q ? `&q=${encodeURIComponent(q)}` : ""}`);
     const entries = r?.result?.entries || [];
-    const products = entries.map((p) => ({
-      id: p.id, title: p.title || p.name || `Product ${p.id}`,
-      price: Number(p.price ?? p.unit_price ?? 0),
-      currency: p.currency?.code || p.currency_code || req.session.data?.merchant?.currency_code || "JMD",
-    }));
+    const products = entries.map((p) => {
+      const cur = p.currency || {};
+      const raw = Number(p.price ?? p.unit_price ?? 0);
+      // Inkress stores prices in minor units only for FLOAT currencies (USD…).
+      // Zero-decimal currencies like JMD (is_float:false) are already whole.
+      const price = cur.is_float === true ? raw / 100 : raw;
+      return {
+        id: p.id, title: p.title || p.name || `Product ${p.id}`,
+        price,
+        currency: cur.code || p.currency_code || req.session.data?.merchant?.currency_code || "JMD",
+      };
+    });
     res.json({ products });
   } catch (err) {
     res.status(502).json({ error: "products_failed", message: err?.message });
@@ -232,15 +239,19 @@ app.post("/api/orders/:id/issue", core.requireSession, async (req, res) => {
   // Create the Inkress order once (idempotent on our ref). Re-issuing reuses it.
   if (!inkressOrderId) {
     try {
+      // Inkress derives the charge from `total` (major units). We deliberately
+      // do NOT pass `products` line-item refs — in the OAuth-app context Inkress
+      // rejects them ("Product '' has invalid currency"); itemisation lives in
+      // our own DB and is summarised into the order title instead.
+      const itemSummary = items.map((i) => `${i.qty}× ${i.title}`).join(", ").slice(0, 120);
       const created = await createInkressOrder(core.cfg, req.session.accessToken, {
         referenceId: row.ref,
         total: toMoney(row.subtotal),
         currencyCode: row.currency,
-        title: `Phone order — ${row.customer_name}`,
+        title: `Phone order — ${row.customer_name}${itemSummary ? ` (${itemSummary})` : ""}`.slice(0, 180),
         kind: "online",
         customer: { email, first_name, last_name, phone: row.customer_phone || undefined },
-        products: items.filter((i) => i.product_id).map((i) => ({ product_id: i.product_id, quantity: i.qty })),
-        metaData: { source: "phone-order-taker", payment_method: mode === "cash" ? "cash" : "online", taken_by: req.actor?.name || "" },
+        metaData: { source: "phone-order-taker", payment_method: mode === "cash" ? "cash" : "online", taken_by: req.actor?.name || "", items: itemSummary },
       });
       inkressOrderId = created.id != null ? String(created.id) : null;
       paymentUrl = created.payment_url || created.short_link || null;
