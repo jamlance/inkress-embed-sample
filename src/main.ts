@@ -141,14 +141,37 @@ function render(inkress: InkressApp) {
       </dl>
       <div class="row" style="margin-top: 8px;">
         <button data-cmd="sess-refresh">Force refresh</button>
-        <button data-cmd="sess-exchange" class="primary">Exchange for access token</button>
       </div>
-      <div id="sess-exchange-out" class="token-box" hidden></div>
-      <p class="muted" style="font-size: 12px; margin-top: 8px;">
-        Exchange runs entirely in the browser for this demo — in
-        production, route the call through your backend so
-        <span class="mono">client_secret</span> stays server-side.
-      </p>
+
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <h2 style="margin-top: 0;">Exchange for access token</h2>
+        <p class="muted" style="font-size: 12px; margin: 0 0 8px;">
+          Pastes the session JWT into the RFC 8693 token-exchange
+          endpoint. The result is a normal <span class="mono">inka_</span>
+          access token you can use to call the Inkress API.
+        </p>
+        <div class="col">
+          <div>
+            <label class="muted" style="display:block; font-size:11px; margin-bottom: 2px;">client_id</label>
+            <input type="text" id="exchange-client-id" placeholder="inkid_…" style="width: 320px;" />
+          </div>
+          <div>
+            <label class="muted" style="display:block; font-size:11px; margin-bottom: 2px;">client_secret</label>
+            <input type="text" id="exchange-client-secret" placeholder="raw secret from app registration" style="width: 320px;" />
+          </div>
+          <div class="row" style="margin-top: 4px;">
+            <button data-cmd="sess-exchange" class="primary">Exchange</button>
+            <button data-cmd="sess-exchange-clear">Clear secret</button>
+          </div>
+        </div>
+        <div id="sess-exchange-out" class="token-box" hidden></div>
+        <p class="muted" style="font-size: 11px; margin-top: 8px;">
+          The secret stays in this iframe — never sent to Inkress. In
+          a real app, keep <span class="mono">client_secret</span>
+          server-side and call <span class="mono">/oauth/token</span>
+          from your backend.
+        </p>
+      </div>
     </section>
 
     <section class="panel" style="margin-top: 16px;">
@@ -339,14 +362,17 @@ async function runCommand(
       return;
     }
     case "sess-exchange": {
-      const clientId = window.prompt(
-        "client_id (inkid_…) for this embedded app:",
-      );
-      if (!clientId) return;
-      const clientSecret = window.prompt(
-        "client_secret (only for the demo — production code keeps this on the server):",
-      );
-      if (!clientSecret) return;
+      const clientId = qs<HTMLInputElement>("#exchange-client-id").value.trim();
+      const clientSecret = qs<HTMLInputElement>(
+        "#exchange-client-secret",
+      ).value.trim();
+      if (!clientId || !clientSecret) {
+        inkress.notify({
+          kind: "warning",
+          message: "Fill in both client_id and client_secret before exchanging.",
+        });
+        return;
+      }
       try {
         const r = await inkress.session.exchange({ clientId, clientSecret });
         log("← session.exchange", {
@@ -357,12 +383,24 @@ async function runCommand(
         const out = qs<HTMLDivElement>("#sess-exchange-out");
         out.hidden = false;
         out.textContent = JSON.stringify(r, null, 2);
+        inkress.notify({
+          kind: "success",
+          message: `Got access token (${r.expires_in}s).`,
+        });
       } catch (err: any) {
         log("← session.exchange error", {
           code: err?.code,
           message: err?.message,
         });
+        inkress.notify({
+          kind: "error",
+          message: `Exchange failed: ${err?.code || err?.message || "unknown"}`,
+        });
       }
+      return;
+    }
+    case "sess-exchange-clear": {
+      qs<HTMLInputElement>("#exchange-client-secret").value = "";
       return;
     }
     default:
