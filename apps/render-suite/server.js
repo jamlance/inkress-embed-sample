@@ -30,8 +30,10 @@ const db = openDb("render-suite", `
 // OAUTH_CLIENTS is "id1:secret1,id2:secret2,…" — one per path-routed
 // listing (invoices/receipts/donations/gift-cards). The core picks the
 // right one per session token's aud claim.
+// Pairs are ";"-separated ("id:secret;id:secret") so the value can sit
+// inside a comma-delimited env list without colliding.
 const clients = {};
-for (const pair of (process.env.OAUTH_CLIENTS || "").split(",")) {
+for (const pair of (process.env.OAUTH_CLIENTS || "").split(/[;,]/)) {
   const [id, secret] = pair.split(":");
   if (id && secret) clients[id.trim()] = secret.trim();
 }
