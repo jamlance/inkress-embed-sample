@@ -6,19 +6,27 @@
 
 /* ----------------------------------------------------------- tokens */
 :root,
+:root[data-brand="marketplace"],
+:root[data-brand="bookerva"] {
+  /* Shared neutrals — near-white, a whisper of warmth. Both brands use
+     the SAME canvas; only the accent + wordmark differ. Color lives in
+     accents and status, not the whole surface. */
+  --bg: oklch(0.992 0.0015 255);
+  --surface: oklch(1 0 0);
+  --panel: oklch(0.975 0.003 255);
+  --ink: oklch(0.25 0.012 260);
+  --ink-soft: oklch(0.5 0.012 260);
+  --ink-faint: oklch(0.66 0.01 260);
+  --line: oklch(0.92 0.004 260);
+  --line-strong: oklch(0.87 0.006 260);
+  --accent-ink: oklch(0.99 0.005 255);
+}
+
+:root,
 :root[data-brand="marketplace"] {
-  --bg: oklch(0.985 0.004 250);
-  --surface: oklch(0.997 0.003 250);
-  --panel: oklch(0.967 0.006 250);
-  --ink: oklch(0.24 0.02 255);
-  --ink-soft: oklch(0.47 0.02 255);
-  --ink-faint: oklch(0.63 0.015 255);
-  --line: oklch(0.91 0.008 255);
-  --line-strong: oklch(0.85 0.01 255);
-  --accent: oklch(0.55 0.17 255);
-  --accent-press: oklch(0.48 0.17 255);
-  --accent-wash: oklch(0.95 0.04 255);
-  --accent-ink: oklch(0.99 0.01 255);
+  --accent: oklch(0.55 0.15 255);
+  --accent-press: oklch(0.48 0.15 255);
+  --accent-wash: oklch(0.955 0.03 255);
 
   --ok: oklch(0.6 0.14 155);
   --ok-wash: oklch(0.95 0.04 155);
@@ -41,22 +49,22 @@
 }
 
 :root[data-brand="bookerva"] {
-  --bg: oklch(0.985 0.006 55);
-  --surface: oklch(0.998 0.004 55);
-  --panel: oklch(0.966 0.011 55);
-  --ink: oklch(0.26 0.02 50);
-  --ink-soft: oklch(0.47 0.025 50);
-  --ink-faint: oklch(0.63 0.02 50);
-  --line: oklch(0.9 0.013 55);
-  --line-strong: oklch(0.84 0.016 50);
-  --accent: oklch(0.62 0.15 45);
-  --accent-press: oklch(0.55 0.15 45);
-  --accent-wash: oklch(0.955 0.035 55);
-  --accent-ink: oklch(0.99 0.01 55);
-  --e1: 0 1px 2px oklch(0.5 0.04 45 / 0.07), 0 1px 1px oklch(0.5 0.04 45 / 0.05);
-  --e2: 0 3px 10px oklch(0.5 0.04 45 / 0.1), 0 1px 2px oklch(0.5 0.04 45 / 0.06);
-  --e3: 0 12px 32px oklch(0.4 0.04 45 / 0.18), 0 3px 8px oklch(0.4 0.04 45 / 0.09);
+  /* Same canvas as Marketplace; only the accent is terracotta. */
+  --accent: oklch(0.6 0.13 45);
+  --accent-press: oklch(0.53 0.13 45);
+  --accent-wash: oklch(0.96 0.028 55);
 }
+
+/* Per-vertical accent overrides — siblings, not clones. Set
+   data-vertical on <html>; the rest of the system is unchanged. */
+:root[data-vertical="tradesman"] { --accent: oklch(0.62 0.13 65); --accent-press: oklch(0.55 0.13 65); --accent-wash: oklch(0.96 0.03 70); }
+:root[data-vertical="salon"]     { --accent: oklch(0.55 0.13 350); --accent-press: oklch(0.48 0.13 350); --accent-wash: oklch(0.96 0.03 350); }
+:root[data-vertical="auto"]      { --accent: oklch(0.52 0.08 245); --accent-press: oklch(0.45 0.08 245); --accent-wash: oklch(0.955 0.02 245); }
+:root[data-vertical="tuition"]   { --accent: oklch(0.55 0.12 155); --accent-press: oklch(0.48 0.12 155); --accent-wash: oklch(0.955 0.03 155); }
+:root[data-vertical="gym"]       { --accent: oklch(0.53 0.16 295); --accent-press: oklch(0.46 0.16 295); --accent-wash: oklch(0.96 0.035 295); }
+:root[data-vertical="photo"]     { --accent: oklch(0.5 0.15 275); --accent-press: oklch(0.43 0.15 275); --accent-wash: oklch(0.955 0.03 275); }
+:root[data-vertical="cleaning"]  { --accent: oklch(0.58 0.1 195); --accent-press: oklch(0.51 0.1 195); --accent-wash: oklch(0.955 0.03 195); }
+:root[data-vertical="catering"]  { --accent: oklch(0.55 0.14 35); --accent-press: oklch(0.48 0.14 35); --accent-wash: oklch(0.96 0.03 40); }
 
 /* ----------------------------------------------------------- base */
 * { box-sizing: border-box; }
@@ -265,11 +273,14 @@ input.is-error, select.is-error { border-color: var(--bad); box-shadow: 0 0 0 3p
 
 /* ----------------------------------------------------------- public pages */
 .pub { min-height: 100vh; background: var(--bg); }
-.pub-hero { padding: 40px 24px 56px; text-align: center; color: var(--accent-ink); background: linear-gradient(160deg, var(--accent), var(--accent-press)); }
-.pub-hero .logo { width: 72px; height: 72px; border-radius: 20px; object-fit: cover; margin: 0 auto 14px; box-shadow: var(--e2); background: var(--surface); }
-.pub-hero h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; color: inherit; }
-.pub-hero p { color: color-mix(in oklch, var(--accent-ink) 86%, transparent); margin-top: 6px; }
-.pub-wrap { max-width: 480px; margin: -32px auto 0; padding: 0 16px 48px; position: relative; }
+/* Calm branded header: a soft tinted band, not a drenched gradient.
+   The merchant's logo + name lead; color is a quiet accent line. */
+.pub-hero { padding: 36px 24px 28px; text-align: center; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; }
+.pub-hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--accent); }
+.pub-hero .logo { width: 64px; height: 64px; border-radius: 18px; object-fit: cover; margin: 0 auto 12px; box-shadow: var(--e1); border: 1px solid var(--line); background: var(--surface); }
+.pub-hero h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.pub-hero p { color: var(--ink-soft); margin-top: 4px; }
+.pub-wrap { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; position: relative; }
 .pub-card { background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--e3); border: 1px solid var(--line); padding: 24px; }
 .pub-card + .pub-card { margin-top: 16px; }
 .pub-foot { text-align: center; color: var(--ink-faint); font-size: 0.6875rem; padding: 20px; }
