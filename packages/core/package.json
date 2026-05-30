@@ -12,6 +12,8 @@
     "./session-store": "./src/session-store.mjs",
     "./db": "./src/db.mjs",
     "./browser": "./src/browser.ts",
+    "./ui": "./src/ui.ts",
+    "./icons": "./src/icons.ts",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {

@@ -19,6 +19,12 @@
 
 import { createInkressApp, type InkressApp } from "@inkress/app-bridge";
 
+export interface BvUser {
+  id: number | null;
+  name: string | null;
+  email: string | null;
+}
+
 export interface BvSession {
   inkress: InkressApp;
   merchant: {
@@ -29,6 +35,8 @@ export interface BvSession {
     email?: string | null;
     logo?: string | null;
   };
+  /** The dashboard user operating the app — for attribution ("by X"). */
+  user: BvUser;
   scopes: string[];
 }
 
@@ -49,6 +57,7 @@ function getStoredSessionId(): string | null {
 }
 
 let inMemorySessionId: string | null = null;
+let actorHeaders: Record<string, string> = {};
 
 function storeSessionId(id: string) {
   inMemorySessionId = id;
@@ -115,12 +124,33 @@ export async function initBv(): Promise<BvSession> {
     throw new Error("No session token — open this app from the Inkress dashboard.");
   }
 
-  return { inkress, merchant: merchantData, scopes };
+  const user: BvUser = {
+    id: inkress.user?.id ?? null,
+    name: inkress.user?.name ?? null,
+    email: inkress.user?.email ?? null,
+  };
+  actorHeaders = {
+    "X-BV-User-Id": String(user.id ?? ""),
+    "X-BV-User-Name": user.name ?? "",
+  };
+
+  return { inkress, merchant: merchantData, user, scopes };
 }
 
 export function makeToast(inkress: InkressApp): BvToastFn {
   return (message, kind = "info") => inkress.notify({ kind, message });
 }
+
+// Send attribution headers on writes so the server records who acted.
+export function bvActor(session: BvSession): Record<string, string> {
+  return {
+    "X-BV-User-Id": String(session.user.id ?? ""),
+    "X-BV-User-Name": session.user.name ?? "",
+  };
+}
+
+export * from "./ui.js";
+export { icon } from "./icons.js";
 
 /** Authenticated fetch to the app's own server. Attaches X-BV-Session. */
 export async function bvApi<T = unknown>(
@@ -134,6 +164,7 @@ export async function bvApi<T = unknown>(
       ...(init.headers as Record<string, string> | undefined),
       Accept: "application/json",
       ...(sessionId ? { "X-BV-Session": sessionId } : {}),
+      ...actorHeaders,
       ...(init.body && !(init.body instanceof FormData)
         ? { "Content-Type": "application/json" }
         : {}),

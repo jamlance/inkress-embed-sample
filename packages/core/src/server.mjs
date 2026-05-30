@@ -11,10 +11,13 @@ const DEFAULT_FRAME_ANCESTORS =
 // claim to pick which client credentials to present; the API verifies
 // the signature during exchange).
 function peekAud(jwt) {
+  return peekClaim(jwt, "aud");
+}
+function peekClaim(jwt, claim) {
   try {
     const part = jwt.split(".")[1];
     const json = Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
-    return JSON.parse(json).aud;
+    return JSON.parse(json)[claim];
   } catch {
     return null;
   }
@@ -75,6 +78,12 @@ export function mountAppCore(app, opts) {
       // iframe keeps it in memory + sessionStorage and sends it as
       // X-BV-Session. We still set a cookie too (harmless; works for
       // non-iframe/local use) but never depend on it.
+      // Stash the acting user on the session for attribution fallback.
+      entry.data.user_id = peekClaim(sessionJwt, "user_id");
+      // Let the app cache merchant branding (for public pages) etc.
+      if (typeof opts.onBootstrap === "function") {
+        try { opts.onBootstrap(entry); } catch { /* non-fatal */ }
+      }
       res.cookie(SESSION_COOKIE, entry.sessionId, {
         httpOnly: true,
         secure: true,
@@ -124,6 +133,12 @@ export function mountAppCore(app, opts) {
     const entry = resolveSession(req);
     if (!entry) return res.status(401).json({ error: "no_session" });
     req.session = entry;
+    // Attribution: who is acting (from the X-BV-User-* headers the
+    // browser kit attaches). Falls back to the JWT's consenting user.
+    req.actor = {
+      id: Number(req.get("x-bv-user-id")) || entry.data?.user_id || null,
+      name: req.get("x-bv-user-name") || entry.data?.user_name || null,
+    };
     next();
   };
 
