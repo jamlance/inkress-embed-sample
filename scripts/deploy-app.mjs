@@ -90,15 +90,20 @@ async function main() {
   const envCsv = args.env || "";
 
   // 1. Update name + git source + build config
+  // Coolify wants org/repo (not full URL) for GithubApp-sourced apps,
+  // and leading-slash paths for base_dir / dockerfile_location.
+  const gitRepo = args["git-repo"].replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
+  const baseDir = args["base-dir"].startsWith("/") ? args["base-dir"] : `/${args["base-dir"]}`;
+  const dfLoc = dockerfileLocation.startsWith("/") ? dockerfileLocation : `/${dockerfileLocation}`;
   await coolify(`/applications/${uuid}`, {
     method: "PATCH",
     body: JSON.stringify({
       name,
-      git_repository: args["git-repo"],
+      git_repository: gitRepo,
       git_branch: args["git-branch"],
       git_commit_sha: "HEAD",
-      base_directory: args["base-dir"],
-      dockerfile_location: dockerfileLocation,
+      base_directory: baseDir,
+      dockerfile_location: dfLoc,
       build_pack: "dockerfile",
       ports_exposes: "3000",
     }),
@@ -116,26 +121,14 @@ async function main() {
       try {
         await coolify(`/applications/${uuid}/envs`, {
           method: "POST",
-          body: JSON.stringify({
-            key,
-            value,
-            is_build_time: false,
-            is_preview: false,
-            is_literal: true,
-          }),
+          body: JSON.stringify({ key, value }),
         });
       } catch (err) {
         // PATCH if it already exists
         try {
           await coolify(`/applications/${uuid}/envs`, {
             method: "PATCH",
-            body: JSON.stringify({
-              key,
-              value,
-              is_build_time: false,
-              is_preview: false,
-              is_literal: true,
-            }),
+            body: JSON.stringify({ key, value }),
           });
         } catch (err2) {
           console.error(`  env ${key}: failed (${err2.message})`);
