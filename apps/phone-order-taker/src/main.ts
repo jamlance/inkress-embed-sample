@@ -6,7 +6,7 @@ import {
 } from "./bv-init";
 
 interface Product { id: number; title: string; price: number; currency: string; }
-interface Line { product_id: number | null; title: string; price: number; qty: number; }
+interface Line { product_id: number | null; title: string; price: number; qty: number; note?: string | null; }
 interface Customer { name: string; email: string | null; phone: string | null; }
 interface Order {
   id: number; ref: string; customer: Customer; items: Line[]; subtotal: number; currency: string;
@@ -29,10 +29,20 @@ let ordersFilter = "";
 
 let shell: ReturnType<typeof mountShell>;
 
+// In dev, render with mock data whenever there's no real session token
+// (the real dashboard always passes ?inkress_session=…). Stripped from prod.
+const MOCK = import.meta.env.DEV && !new URLSearchParams(location.search).has("inkress_session");
+
 (async () => {
   let session;
-  try { session = await initBv(); }
-  catch (err: any) { root.innerHTML = ""; root.append(fatal(err?.message)); return; }
+  if (MOCK) {
+    const m = await import("./dev-mock");
+    m.installMockFetch();
+    session = m.mockSession();
+  } else {
+    try { session = await initBv(); }
+    catch (err: any) { root.innerHTML = ""; root.append(fatal(err?.message)); return; }
+  }
   toast = makeToast(session.inkress);
   merchantName = session.merchant.name || session.merchant.username || "Merchant";
   currency = session.merchant.currency_code || "JMD";
@@ -82,9 +92,11 @@ function renderNew(host: HTMLElement) {
     field("Note", note, (v) => (note = v), "optional — delivery, special instructions"),
   );
 
+  const orderCard = card({ title: "Order", body: [cartBox, totalBox, custBox, closeBox] });
+  orderCard.classList.add("pot-order-card");
   grid.append(
     card({ title: "Products", body: [search, results] }),
-    card({ title: "Order", body: [cartBox, totalBox, custBox, closeBox] }),
+    orderCard,
   );
   host.append(grid);
   loadProducts("", results);
@@ -122,35 +134,52 @@ function addToCart(p: Product) {
 function renderCart(host: HTMLElement, totalHost: HTMLElement, repaint: () => void) {
   host.innerHTML = ""; totalHost.innerHTML = "";
   if (!cart.length) {
-    host.append(h("div", { class: "bv-muted", style: { padding: "10px 2px" } }, "No items yet — search and add from the left."));
+    host.append(h("div", { class: "pot-cart-empty" },
+      iconEl("inbox", 22),
+      h("div", null, h("strong", null, "No items yet"), h("div", { class: "bv-muted" }, "Search and add products from the left.")),
+    ));
     return;
   }
   for (const line of cart) {
+    const noteInput = h("input", {
+      class: "pot-line-note", placeholder: "Add a note for this item (e.g. low fade, no scent)…", value: line.note || "",
+    }) as HTMLInputElement;
+    // Bind without repaint so typing keeps focus.
+    noteInput.addEventListener("input", () => { line.note = noteInput.value || null; });
     host.append(h("div", { class: "pot-line" },
-      h("span", { class: "pot-line-title" }, line.title),
-      h("span", { class: "pot-qty" },
-        h("button", { onClick: () => { line.qty--; if (line.qty <= 0) cart = cart.filter((c) => c !== line); repaint(); } }, "−"),
-        h("b", null, String(line.qty)),
-        h("button", { onClick: () => { line.qty++; repaint(); } }, "+"),
+      h("div", { class: "pot-line-main" },
+        h("span", { class: "pot-line-title" }, line.title),
+        h("span", { class: "pot-qty" },
+          h("button", { class: "pot-step", onClick: () => { line.qty--; if (line.qty <= 0) cart = cart.filter((c) => c !== line); repaint(); } }, "−"),
+          h("b", null, String(line.qty)),
+          h("button", { class: "pot-step", onClick: () => { line.qty++; repaint(); } }, "+"),
+        ),
+        h("span", { class: "pot-line-amt" }, fmtMoney(line.price * line.qty, currency)),
+        h("button", { class: "pot-line-x", title: "Remove item", onClick: () => { cart = cart.filter((c) => c !== line); repaint(); } }, iconEl("x", 14)),
       ),
-      h("span", { class: "pot-line-amt" }, fmtMoney(line.price * line.qty, currency)),
+      noteInput,
     ));
   }
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
-  totalHost.append(h("span", null, "Subtotal"), h("b", null, fmtMoney(subtotal, currency)));
+  const count = cart.reduce((s, c) => s + c.qty, 0);
+  totalHost.append(
+    h("span", { class: "pot-total-label" }, "Subtotal", h("span", { class: "bv-muted" }, ` · ${count} item${count === 1 ? "" : "s"}`)),
+    h("b", null, fmtMoney(subtotal, currency)),
+  );
 }
 
 function renderCloseout(host: HTMLElement) {
   host.innerHTML = "";
   const ready = cart.length > 0 && custName.trim().length > 0;
-  const hint = !cart.length ? "Add at least one item." : !custName.trim() ? "Enter the customer's name." : null;
-  if (hint) { host.append(h("div", { class: "bv-muted", style: { padding: "4px 2px" } }, hint)); }
+  const hint = !cart.length ? "Add at least one item to continue." : !custName.trim() ? "Enter the customer's name to continue." : null;
+  if (hint) host.append(h("div", { class: "pot-close-hint" }, iconEl("alert", 14), hint));
 
-  const saveBtn = h("button", { class: "ghost", disabled: !ready, onClick: () => closeOut(null) }, "Save draft");
-  const linkBtn = h("button", { class: "primary", disabled: !ready || !custEmail.trim(), title: !custEmail.trim() ? "Add an email to send a link" : "", onClick: () => closeOut("link") }, iconEl("send", 15), "Send link");
+  const linkBtn = h("button", { class: "primary pot-collect-primary", disabled: !ready || !custEmail.trim(), title: !custEmail.trim() ? "Add the customer's email to send a link" : "", onClick: () => closeOut("link") }, iconEl("send", 16), "Send payment link");
   const nowBtn = h("button", { disabled: !ready, onClick: () => closeOut("now") }, iconEl("credit-card", 15), "Take payment now");
   const cashBtn = h("button", { disabled: !ready, onClick: () => closeOut("cash") }, iconEl("cash", 15), "Cash / in person");
-  host.append(h("div", { class: "pot-actions" }, saveBtn, linkBtn, nowBtn, cashBtn));
+  const saveBtn = h("button", { class: "ghost pot-save", disabled: !ready, onClick: () => closeOut(null) }, "Save as draft");
+
+  host.append(h("div", { class: "pot-collect" }, linkBtn, nowBtn, cashBtn), saveBtn);
 }
 
 async function closeOut(mode: "link" | "now" | "cash" | null) {
@@ -257,8 +286,12 @@ function openOrder(o: Order) {
       o.customer.phone ? h("div", { class: "bv-muted" }, o.customer.phone) : null),
     h("table", { class: "bv-table pot-detail-items" },
       h("tbody", null, ...o.items.map((i) =>
-        h("tr", null, h("td", null, `${i.qty}× ${i.title}`), h("td", { class: "num" }, fmtMoney(i.price * i.qty, o.currency)))),
-        h("tr", null, h("td", null, h("b", null, "Subtotal")), h("td", { class: "num" }, h("b", null, fmtMoney(o.subtotal, o.currency)))))),
+        h("tr", null,
+          h("td", null,
+            h("span", { class: "pot-detail-line-title" }, `${i.qty}× ${i.title}`),
+            i.note ? h("div", { class: "pot-detail-line-note" }, iconEl("edit", 12), i.note) : null),
+          h("td", { class: "num" }, fmtMoney(i.price * i.qty, o.currency)))),
+        h("tr", { class: "pot-detail-subtotal" }, h("td", null, h("b", null, "Subtotal")), h("td", { class: "num" }, h("b", null, fmtMoney(o.subtotal, o.currency)))))),
     h("div", { class: "pot-detail-meta" },
       h("span", null, "State: ", statePill(o.state)),
       o.inkress_order_id ? h("span", { class: "bv-muted" }, `Inkress #${o.inkress_order_id}`) : null,

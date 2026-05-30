@@ -113,18 +113,20 @@ a:hover { text-decoration: underline; }
 }
 .bv-poweredby b { color: var(--ink-soft); font-weight: 600; }
 
-.bv-tabs { display: flex; gap: 2px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+/* Segmented control — a raised white pill marks the active view. Avoids the
+   clipped-underline problem and reads more deliberate than thin text tabs. */
+.bv-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 7px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .bv-tab {
-  appearance: none; border: 0; background: none; cursor: pointer;
-  font: inherit; font-size: 0.8125rem; font-weight: 550;
-  color: var(--ink-soft); padding: 11px 14px 12px;
-  border-bottom: 2px solid transparent; white-space: nowrap;
-  transition: color 0.16s var(--ease), border-color 0.18s var(--ease);
+  appearance: none; border: 1px solid transparent; background: transparent; cursor: pointer;
+  font: inherit; font-size: 0.8125rem; font-weight: 600;
+  color: var(--ink-soft); padding: 7px 13px; border-radius: 9px; white-space: nowrap;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease), box-shadow 0.15s var(--ease);
   display: inline-flex; align-items: center; gap: 7px;
 }
-.bv-tab svg { width: 16px; height: 16px; opacity: 0.85; }
-.bv-tab:hover { color: var(--ink); }
-.bv-tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.bv-tab svg { width: 16px; height: 16px; opacity: 0.75; }
+.bv-tab:hover { color: var(--ink); background: color-mix(in oklch, var(--panel) 55%, var(--surface)); }
+.bv-tab[aria-selected="true"] { color: var(--accent); background: var(--surface); border-color: var(--line); box-shadow: var(--e1); }
+.bv-tab[aria-selected="true"] svg { opacity: 1; }
 
 .bv-content { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: 24px; }
 @media (max-width: 640px) { .bv-content, .bv-topbar, .bv-tabs { padding-left: 16px; padding-right: 16px; } }
@@ -212,6 +214,8 @@ input.is-error, select.is-error { border-color: var(--bad); box-shadow: 0 0 0 3p
 .bv-field .err { color: var(--bad); font-size: 0.75rem; margin-top: 4px; }
 
 /* ----------------------------------------------------------- tables */
+.bv-table-wrap { width: 100%; overflow-x: auto; }
+.bv-table-wrap .bv-table { min-width: 34rem; }
 .bv-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .bv-table th { text-align: left; font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); padding: 9px 12px; background: var(--panel); position: sticky; top: 0; }
 .bv-table th:first-child { border-top-left-radius: var(--r-sm); }

@@ -139,7 +139,8 @@ export function dataTable<T>(o: TableOpts<T>): HTMLElement {
       o.rowActions ? h("td", { class: "actions", onClick: (e: Event) => e.stopPropagation() }, o.rowActions(row)) : null);
     return tr;
   });
-  return h("table", { class: "bv-table" }, h("thead", null, head), h("tbody", null, ...body));
+  return h("div", { class: "bv-table-wrap" },
+    h("table", { class: "bv-table" }, h("thead", null, head), h("tbody", null, ...body)));
 }
 
 export function emptyState(o: { icon: string; title: string; text?: string; action?: Node }): HTMLElement {

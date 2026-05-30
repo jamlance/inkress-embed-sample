@@ -94,6 +94,7 @@ function cleanItems(input) {
       title: String(i.title || "Item").slice(0, 200),
       price: round2(i.price),
       qty: Math.max(1, Math.floor(Number(i.qty) || 1)),
+      note: i.note ? String(i.note).slice(0, 300) : null,
     }))
     .filter((i) => i.title);
 }
