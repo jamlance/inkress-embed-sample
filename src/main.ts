@@ -163,6 +163,10 @@ function render(inkress: InkressApp) {
   qs("#ident-currency").textContent = inkress.merchant.currency_code ?? "—";
   qs("#ident-user").textContent = String(inkress.user.id ?? "—");
   qs("#ident-theme").textContent = `${inkress.theme} · ${inkress.locale}`;
+  // API base populates if the host sent it in inkress.config.
+  // session.exchange uses it to construct the token endpoint.
+  const apiBase = inkress.apiBaseUrl ?? "—";
+  console.info("[sample] apiBaseUrl", apiBase, "hostOrigin", inkress.hostOrigin);
 
   const scopesEl = qs("#ident-scopes");
   if (inkress.scopes.length === 0) {
