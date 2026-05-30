@@ -69,6 +69,71 @@ export class InkressApiError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Orders + hosted checkout.
+//
+// Schema mirrors Bookerva's production payment adapter (the proven path):
+//   POST /orders { reference_id, total, kind:"online", title, currency_code,
+//                  customer{email,first_name,last_name,phone}, products[],
+//                  meta_data{...,return_url,cancel_url} }
+//   → result { id, status, payment_urls:{ payment_url, short_link }, expires_at }
+//
+// IMPORTANT: Inkress `total` is in MAJOR units (e.g. 40.99 dollars), NOT minor.
+// `kind:"online"` yields a hosted-checkout order that stays PENDING (status 1)
+// until the customer pays; the payment webhook flips it to PAID (status 3).
+// `reference_id` must be unique per order — use it to reconcile app draft →
+// Inkress order without duplicates.
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a hosted-checkout Inkress order.
+ * @param input {referenceId, total, currencyCode, title, customer,
+ *   products?:[{product_id,quantity}], kind?, metaData?, returnUrl?, cancelUrl?}
+ * @returns {id, payment_url, short_link, expires_at, status, raw}
+ */
+export async function createInkressOrder(cfg, accessToken, input) {
+  const body = {
+    reference_id: input.referenceId,
+    total: input.total,
+    kind: input.kind || "online",
+    title: input.title,
+    currency_code: input.currencyCode,
+    customer: input.customer,
+    ...(input.products?.length ? { products: input.products } : {}),
+    meta_data: {
+      ...(input.metaData || {}),
+      ...(input.returnUrl ? { return_url: input.returnUrl } : {}),
+      ...(input.cancelUrl ? { cancel_url: input.cancelUrl } : {}),
+    },
+  };
+  const r = await inkressApi(cfg, accessToken, "orders", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  const d = r?.result ?? r ?? {};
+  return {
+    id: d.id,
+    payment_url: d.payment_urls?.payment_url ?? null,
+    short_link: d.payment_urls?.short_link ?? null,
+    frame_url: d.payment_urls?.frame_url ?? null,
+    expires_at: d.expires_at ?? null,
+    status: d.status,
+    raw: d,
+  };
+}
+
+/** Fetch a single Inkress order by id. Returns the `result` object or null. */
+export async function getInkressOrder(cfg, accessToken, id) {
+  const r = await inkressApi(cfg, accessToken, `orders/${encodeURIComponent(id)}`);
+  return r?.result ?? null;
+}
+
+/** List Inkress orders. `query` is a raw querystring (without leading ?). */
+export async function listInkressOrders(cfg, accessToken, query = "") {
+  const r = await inkressApi(cfg, accessToken, `orders${query ? `?${query}` : ""}`);
+  return r?.result ?? r ?? null;
+}
+
 // Inkress order status integers → names. Orders come back with an
 // integer `status` (and sometimes a string `status_name`); apps that
 // reason about "paid vs refunded vs pending" must normalise both.

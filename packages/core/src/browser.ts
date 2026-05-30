@@ -124,10 +124,11 @@ export async function initBv(): Promise<BvSession> {
     throw new Error("No session token — open this app from the Inkress dashboard.");
   }
 
+  const u = inkress.user as { id?: number; name?: string; email?: string } | undefined;
   const user: BvUser = {
-    id: inkress.user?.id ?? null,
-    name: inkress.user?.name ?? null,
-    email: inkress.user?.email ?? null,
+    id: u?.id ?? null,
+    name: u?.name ?? null,
+    email: u?.email ?? null,
   };
   actorHeaders = {
     "X-BV-User-Id": String(user.id ?? ""),

@@ -55,10 +55,17 @@ const ICONS: Record<string, (size?: number) => string> = {
   download: P('<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>'),
   inbox: P('<path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M4 13 6 5h12l2 8v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/>'),
   alert: P('<path d="M12 4 2.5 20h19Z"/><path d="M12 10v4M12 17.5v.01"/>'),
+  list: P('<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>'),
+  settings: P('<circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l1.9-1.5-1.8-3.1-2.3 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-3.6l-.5 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.3-1-1.8 3.1 1.9 1.5a7.6 7.6 0 0 0 0 3l-1.9 1.5 1.8 3.1 2.3-1a7.6 7.6 0 0 0 2.6 1.5l.5 2.4H14l.5-2.4a7.6 7.6 0 0 0 2.6-1.5l2.3 1 1.8-3.1Z"/>'),
+  "credit-card": P('<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h4"/>'),
+  cash: P('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>'),
+  copy: P('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  external: P('<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>'),
   default: P('<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M8 12h8"/>'),
 };
 
 export function icon(name: string, size = 20): string {
-  return (ICONS[name] || ICONS.default)(size);
+  const fn = ICONS[name] ?? ICONS.default;
+  return fn ? fn(size) : "";
 }
 export const iconNames = Object.keys(ICONS);

@@ -1,1 +1,142 @@
 @import "@bookerva-apps/core/styles.css";
+
+/* Phone Order Taker — task-specific layout on top of the shared system. */
+
+.pot-new {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .pot-new { grid-template-columns: 1fr; }
+}
+
+.pot-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.pot-results {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.pot-prod {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.07));
+}
+.pot-prod:last-child { border-bottom: 0; }
+.pot-add {
+  flex: none;
+  padding: 5px 14px;
+}
+
+.pot-cart { margin-bottom: 4px; }
+.pot-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.pot-line-title { font-weight: 500; }
+.pot-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pot-qty button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.pot-qty b { min-width: 20px; text-align: center; }
+.pot-line-amt { min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.pot-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  margin: 4px 0 12px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.07));
+  font-size: 15px;
+}
+
+.pot-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.pot-field-label {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+.pot-field-input { width: 100%; }
+
+.pot-close { margin-top: 6px; }
+.pot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.pot-actions button { display: inline-flex; align-items: center; gap: 6px; }
+
+.pot-btnlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pot-filters { display: inline-flex; gap: 6px; }
+.pot-filter {
+  padding: 4px 12px;
+  font-size: 13px;
+  border-radius: 999px;
+  background: transparent;
+}
+.pot-filter.is-on {
+  background: var(--accent-wash, #eef);
+  color: var(--accent-press, #334);
+  font-weight: 600;
+}
+
+.pot-detail-cust { margin-bottom: 10px; }
+.pot-detail-items { margin: 8px 0; width: 100%; }
+.pot-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.pot-setting-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}

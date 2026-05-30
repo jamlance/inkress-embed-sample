@@ -1,151 +1,337 @@
 import "./index.css";
-import { initBv, bvApi, makeToast, type BvToastFn } from "./bv-init";
+import {
+  initBv, bvApi, makeToast, type BvToastFn,
+  mountShell, statRow, dataTable, card, openModal, flash,
+  fmtMoney, relTime, pill, emptyState, h, iconEl,
+} from "./bv-init";
 
 interface Product { id: number; title: string; price: number; currency: string; }
-interface CartLine { id: number; title: string; price: number; qty: number; }
-interface Draft { id: number; customer: string; contact: string | null; items: CartLine[]; total: number; currency: string; status: string; created_at: string; }
+interface Line { product_id: number | null; title: string; price: number; qty: number; }
+interface Customer { name: string; email: string | null; phone: string | null; }
+interface Order {
+  id: number; ref: string; customer: Customer; items: Line[]; subtotal: number; currency: string;
+  note: string | null; mode: string | null; state: string; inkress_order_id: string | null;
+  payment_url: string | null; paid_at: string | null; created_by: { id: number; name: string } | null;
+  created_at: string; updated_at: string;
+}
+interface Stats { drafts: number; awaiting: number; awaiting_value: number; paid_today: number; paid_today_value: number; }
 
 const root = document.getElementById("root")!;
 let toast: BvToastFn;
-let merchantName = "Merchant", currency = "JMD";
-let cart: CartLine[] = [];
-let products: Product[] = [];
+let merchantName = "Merchant";
+let currency = "JMD";
+
+// New-order working state (persists across tab switches within the session).
+let cart: Line[] = [];
+let custName = "", custPhone = "", custEmail = "", note = "";
+let productCache: Product[] = [];
+let ordersFilter = "";
+
+let shell: ReturnType<typeof mountShell>;
 
 (async () => {
   let session;
   try { session = await initBv(); }
-  catch (err: any) { root.innerHTML = fatal("Phone Order Taker", err?.message); return; }
+  catch (err: any) { root.innerHTML = ""; root.append(fatal(err?.message)); return; }
   toast = makeToast(session.inkress);
   merchantName = session.merchant.name || session.merchant.username || "Merchant";
   currency = session.merchant.currency_code || "JMD";
-  renderShell();
-  await Promise.all([loadProducts(""), refreshDrafts()]);
+
+  shell = mountShell({
+    brandIcon: "phone",
+    title: "Phone Order Taker",
+    subtitle: `${merchantName} · take orders while they're on the line`,
+    poweredBy: "Marketplace",
+    tabs: [
+      { id: "new", label: "New order", icon: "plus", render: renderNew },
+      { id: "orders", label: "Orders", icon: "list", render: renderOrders },
+      { id: "settings", label: "Settings", icon: "settings", render: renderSettings },
+    ],
+  });
 })();
 
-function renderShell() {
-  root.innerHTML = `
-    <div class="bv-shell">
-      <header class="bv-header">
-        <div><h1>Phone Order Taker</h1><p class="bv-muted">${esc(merchantName)} · capture phone orders fast</p></div>
-        <span class="bv-pill">by Bookerva</span>
-      </header>
-      <div id="stats" class="bv-grid bv-grid-3" style="margin-bottom:16px;">${statSkel(3)}</div>
-      <div class="bv-grid bv-grid-2" style="margin-bottom:16px;align-items:start;">
-        <div class="bv-card">
-          <h2 style="margin-top:0;">Products</h2>
-          <input id="prod-search" placeholder="Search products…" style="margin-bottom:10px;" autocomplete="off" />
-          <div id="products"><div class="bv-skeleton" style="width:70%;"></div></div>
-        </div>
-        <div class="bv-card">
-          <h2 style="margin-top:0;">New order</h2>
-          <div class="bv-grid bv-grid-2" style="margin-bottom:8px;">
-            <div><label class="bv-label">Customer</label><input id="o-customer" placeholder="Name" /></div>
-            <div><label class="bv-label">Contact</label><input id="o-contact" placeholder="Phone / email" /></div>
-          </div>
-          <div id="cart"></div>
-          <div id="cart-total" class="bv-row" style="justify-content:space-between;margin-top:10px;font-weight:600;"></div>
-          <div class="bv-row" style="margin-top:10px;"><button id="save-order" class="primary">Save order</button></div>
-        </div>
-      </div>
-      <h2 class="bv-section-title">Recent orders</h2>
-      <div id="drafts" class="bv-card"><div class="bv-skeleton" style="width:70%;"></div></div>
-    </div>`;
-  const search = document.getElementById("prod-search") as HTMLInputElement;
+/* ------------------------------------------------------------------ New order */
+function renderNew(host: HTMLElement) {
+  const grid = h("div", { class: "pot-new" });
+
+  // Left: product search + results.
+  const results = h("div", { class: "pot-results" });
+  const search = h("input", {
+    class: "pot-search", placeholder: "Search products by name…", autocomplete: "off",
+  }) as HTMLInputElement;
   let t: any;
-  search.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => loadProducts(search.value), 250); });
-  document.getElementById("save-order")!.addEventListener("click", onSave);
-  renderCart();
+  search.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => loadProducts(search.value, results), 220); });
+
+  // Right: cart + customer + close-out.
+  const cartBox = h("div", { class: "pot-cart" });
+  const custBox = h("div");
+  const totalBox = h("div", { class: "pot-total" });
+  const closeBox = h("div", { class: "pot-close" });
+
+  const repaint = () => {
+    renderCart(cartBox, totalBox, repaint);
+    renderCloseout(closeBox);
+  };
+
+  custBox.append(
+    h("div", { class: "pot-fields" },
+      field("Customer name", custName, (v) => { custName = v; renderCloseout(closeBox); }, "e.g. Maria Brown"),
+      field("Phone", custPhone, (v) => (custPhone = v), "WhatsApp / mobile"),
+    ),
+    field("Email (needed to send a link)", custEmail, (v) => { custEmail = v; renderCloseout(closeBox); }, "name@email.com"),
+    field("Note", note, (v) => (note = v), "optional — delivery, special instructions"),
+  );
+
+  grid.append(
+    card({ title: "Products", body: [search, results] }),
+    card({ title: "Order", body: [cartBox, totalBox, custBox, closeBox] }),
+  );
+  host.append(grid);
+  loadProducts("", results);
+  repaint();
 }
 
-async function loadProducts(q: string) {
-  const el = document.getElementById("products")!;
+async function loadProducts(q: string, host: HTMLElement) {
+  host.innerHTML = "";
+  host.append(h("div", { class: "bv-muted", style: { padding: "8px 2px" } }, "Searching…"));
   try {
-    const { products: ps } = await bvApi<{ products: Product[] }>(`/api/products${q ? `?q=${encodeURIComponent(q)}` : ""}`);
-    products = ps;
-    if (!ps.length) { el.innerHTML = `<div class="bv-empty">No products found.</div>`; return; }
-    el.innerHTML = ps.map((p) => `
-      <div class="bv-row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid hsl(var(--border));">
-        <div><strong>${esc(p.title)}</strong><div class="bv-muted">${money(p.price, p.currency)}</div></div>
-        <button data-add="${p.id}">Add</button>
-      </div>`).join("");
-    el.querySelectorAll<HTMLButtonElement>("button[data-add]").forEach((b) =>
-      b.addEventListener("click", () => addToCart(Number(b.dataset.add))));
+    const { products } = await bvApi<{ products: Product[] }>(`/api/products${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+    productCache = products;
+    host.innerHTML = "";
+    if (!products.length) { host.append(h("div", { class: "bv-muted", style: { padding: "8px 2px" } }, "No products found.")); return; }
+    for (const p of products) {
+      host.append(h("div", { class: "pot-prod" },
+        h("div", null, h("strong", null, p.title), h("div", { class: "bv-muted" }, fmtMoney(p.price, p.currency || currency))),
+        h("button", { class: "pot-add", onClick: () => addToCart(p) }, "Add"),
+      ));
+    }
   } catch (err: any) {
-    el.innerHTML = `<div class="bv-empty">Couldn't load products: ${esc(err?.message || "error")}</div>`;
+    host.innerHTML = "";
+    host.append(h("div", { class: "bv-muted", style: { padding: "8px 2px" } }, `Couldn't load products: ${err?.message || "error"}`));
   }
 }
 
-function addToCart(id: number) {
-  const p = products.find((x) => x.id === id);
-  if (!p) return;
-  const existing = cart.find((c) => c.id === id);
+function addToCart(p: Product) {
+  const existing = cart.find((c) => c.product_id === p.id);
   if (existing) existing.qty += 1;
-  else cart.push({ id: p.id, title: p.title, price: p.price, qty: 1 });
-  renderCart();
+  else cart.push({ product_id: p.id, title: p.title, price: p.price, qty: 1 });
+  flash(`Added ${p.title}`, "success");
+  shell.select("new"); // re-render to reflect cart
 }
 
-function renderCart() {
-  const el = document.getElementById("cart")!;
-  if (!cart.length) { el.innerHTML = `<div class="bv-muted" style="padding:8px 0;">No items yet — add from the left.</div>`;
-    document.getElementById("cart-total")!.innerHTML = ""; return; }
-  el.innerHTML = cart.map((c) => `
-    <div class="bv-row" style="justify-content:space-between;padding:4px 0;">
-      <span>${esc(c.title)}</span>
-      <span class="bv-row">
-        <button data-dec="${c.id}">−</button><span style="min-width:24px;text-align:center;">${c.qty}</span><button data-inc="${c.id}">+</button>
-        <span style="min-width:80px;text-align:right;">${money(c.price * c.qty, currency)}</span>
-      </span></div>`).join("");
-  const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
-  document.getElementById("cart-total")!.innerHTML = `<span>Total</span><span>${money(total, currency)}</span>`;
-  el.querySelectorAll<HTMLButtonElement>("button[data-inc]").forEach((b) => b.addEventListener("click", () => { const c = cart.find((x) => x.id === Number(b.dataset.inc)); if (c) { c.qty++; renderCart(); } }));
-  el.querySelectorAll<HTMLButtonElement>("button[data-dec]").forEach((b) => b.addEventListener("click", () => {
-    const c = cart.find((x) => x.id === Number(b.dataset.dec)); if (c) { c.qty--; if (c.qty <= 0) cart = cart.filter((x) => x.id !== c.id); renderCart(); } }));
+function renderCart(host: HTMLElement, totalHost: HTMLElement, repaint: () => void) {
+  host.innerHTML = ""; totalHost.innerHTML = "";
+  if (!cart.length) {
+    host.append(h("div", { class: "bv-muted", style: { padding: "10px 2px" } }, "No items yet — search and add from the left."));
+    return;
+  }
+  for (const line of cart) {
+    host.append(h("div", { class: "pot-line" },
+      h("span", { class: "pot-line-title" }, line.title),
+      h("span", { class: "pot-qty" },
+        h("button", { onClick: () => { line.qty--; if (line.qty <= 0) cart = cart.filter((c) => c !== line); repaint(); } }, "−"),
+        h("b", null, String(line.qty)),
+        h("button", { onClick: () => { line.qty++; repaint(); } }, "+"),
+      ),
+      h("span", { class: "pot-line-amt" }, fmtMoney(line.price * line.qty, currency)),
+    ));
+  }
+  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  totalHost.append(h("span", null, "Subtotal"), h("b", null, fmtMoney(subtotal, currency)));
 }
 
-async function onSave() {
-  const customer = (document.getElementById("o-customer") as HTMLInputElement).value;
-  const contact = (document.getElementById("o-contact") as HTMLInputElement).value || null;
-  if (!customer.trim()) { toast("Enter a customer name", "warning"); return; }
-  if (!cart.length) { toast("Add at least one item", "warning"); return; }
+function renderCloseout(host: HTMLElement) {
+  host.innerHTML = "";
+  const ready = cart.length > 0 && custName.trim().length > 0;
+  const hint = !cart.length ? "Add at least one item." : !custName.trim() ? "Enter the customer's name." : null;
+  if (hint) { host.append(h("div", { class: "bv-muted", style: { padding: "4px 2px" } }, hint)); }
+
+  const saveBtn = h("button", { class: "ghost", disabled: !ready, onClick: () => closeOut(null) }, "Save draft");
+  const linkBtn = h("button", { class: "primary", disabled: !ready || !custEmail.trim(), title: !custEmail.trim() ? "Add an email to send a link" : "", onClick: () => closeOut("link") }, iconEl("send", 15), "Send link");
+  const nowBtn = h("button", { disabled: !ready, onClick: () => closeOut("now") }, iconEl("credit-card", 15), "Take payment now");
+  const cashBtn = h("button", { disabled: !ready, onClick: () => closeOut("cash") }, iconEl("cash", 15), "Cash / in person");
+  host.append(h("div", { class: "pot-actions" }, saveBtn, linkBtn, nowBtn, cashBtn));
+}
+
+async function closeOut(mode: "link" | "now" | "cash" | null) {
+  const payload = {
+    customer: { name: custName.trim(), email: custEmail.trim() || null, phone: custPhone.trim() || null },
+    items: cart, note: note.trim() || null, currency,
+  };
   try {
-    await bvApi("/api/drafts", { method: "POST", body: JSON.stringify({ customer, contact, items: cart, currency }) });
-    toast("Order saved", "success");
-    cart = []; renderCart();
-    (document.getElementById("o-customer") as HTMLInputElement).value = "";
-    (document.getElementById("o-contact") as HTMLInputElement).value = "";
-    await refreshDrafts();
-  } catch (err: any) { toast(err?.message || "Couldn't save", "error"); }
+    const { order } = await bvApi<{ order: Order }>("/api/orders", { method: "POST", body: JSON.stringify(payload) });
+    if (mode === null) {
+      toast("Draft saved", "success");
+      resetNew();
+      shell.select("orders");
+      return;
+    }
+    const result = await bvApi<any>(`/api/orders/${order.id}/issue`, { method: "POST", body: JSON.stringify({ mode }) });
+    resetNew();
+    showCloseoutResult(mode, result);
+  } catch (err: any) {
+    toast(err?.message || "Couldn't complete the order", "error");
+  }
 }
 
-async function refreshDrafts() {
+function resetNew() {
+  cart = []; custName = ""; custPhone = ""; custEmail = ""; note = "";
+}
+
+function showCloseoutResult(mode: string, result: any) {
+  const url: string | null = result.payment_url;
+  const body = h("div");
+
+  if (mode === "cash") {
+    body.append(h("p", null, "Recorded as a cash sale. The order is in your Inkress orders for the record."));
+  } else {
+    body.append(h("p", null, mode === "link"
+      ? (result.emailed ? `Payment link emailed to the customer.` : result.ses_configured ? `Order is awaiting payment. Email couldn't send: ${result.email_error || ""}` : `Order is awaiting payment.`)
+      : "Open this on the counter device for the customer to pay now."));
+    if (url) {
+      const urlField = h("input", { class: "pot-search", readonly: true, value: url }) as HTMLInputElement;
+      body.append(urlField,
+        h("div", { class: "pot-actions", style: { marginTop: "8px" } },
+          h("button", { class: "primary", onClick: () => { navigator.clipboard?.writeText(url); flash("Link copied", "success"); } }, iconEl("copy", 15), "Copy link"),
+          h("a", { class: "pot-btnlink", href: url, target: "_blank", rel: "noopener" }, iconEl("external", 15), mode === "now" ? "Open checkout" : "Open"),
+          result.whatsapp ? h("a", { class: "pot-btnlink", href: result.whatsapp, target: "_blank", rel: "noopener" }, "WhatsApp") : null,
+        ));
+    }
+  }
+  openModal({
+    title: mode === "cash" ? "Cash sale recorded" : "Order created",
+    body,
+    actions: [{ label: "Done", primary: true, onClick: () => { shell.select("orders"); } }],
+  });
+}
+
+/* -------------------------------------------------------------------- Orders */
+async function renderOrders(host: HTMLElement) {
+  host.append(h("div", { class: "bv-muted", style: { padding: "12px 2px" } }, "Loading orders…"));
+  let data: { orders: Order[]; stats: Stats };
   try {
-    const { drafts, stats } = await bvApi<{ drafts: Draft[]; stats: any }>("/api/drafts");
-    document.getElementById("stats")!.innerHTML =
-      statCard("Open orders", String(stats.open)) + statCard("Open value", money(stats.total_value, currency)) + statCard("Total captured", String(stats.count));
-    const el = document.getElementById("drafts")!;
-    if (!drafts.length) { el.innerHTML = `<div class="bv-empty">No phone orders yet.</div>`; return; }
-    el.innerHTML = `<table class="bv-table"><thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
-      <tbody>${drafts.map((d) => `<tr>
-        <td><strong>${esc(d.customer)}</strong>${d.contact ? `<div class="bv-muted">${esc(d.contact)}</div>` : ""}</td>
-        <td class="bv-muted">${d.items.map((i) => `${i.qty}× ${esc(i.title)}`).join(", ")}</td>
-        <td>${money(d.total, d.currency)}</td>
-        <td><span class="bv-pill" data-tone="${d.status === "open" ? "warning" : d.status === "fulfilled" ? "success" : "destructive"}">${esc(d.status)}</span></td>
-        <td style="text-align:right;white-space:nowrap;">
-          ${d.status === "open" ? `<button data-act="fulfilled" data-id="${d.id}">Fulfil</button>` : ""}
-          <button data-act="del" data-id="${d.id}" class="destructive">Delete</button>
-        </td></tr>`).join("")}</tbody></table>`;
-    el.querySelectorAll<HTMLButtonElement>("button[data-act]").forEach((b) => b.addEventListener("click", async () => {
-      try {
-        if (b.dataset.act === "del") await bvApi(`/api/drafts/${b.dataset.id}`, { method: "DELETE" });
-        else await bvApi(`/api/drafts/${b.dataset.id}`, { method: "PATCH", body: JSON.stringify({ status: b.dataset.act }) });
-        await refreshDrafts();
-      } catch (err: any) { toast(err?.message || "error", "error"); }
-    }));
-  } catch (err: any) { document.getElementById("drafts")!.innerHTML = `<div class="bv-empty">Couldn't load: ${esc(err?.message || "error")}</div>`; }
+    data = await bvApi(`/api/orders?refresh=1${ordersFilter ? `&state=${ordersFilter}` : ""}`);
+  } catch (err: any) {
+    host.innerHTML = ""; host.append(emptyState({ icon: "alert", title: "Couldn't load orders", text: err?.message })); return;
+  }
+  host.innerHTML = "";
+  host.append(statRow([
+    { k: "Open drafts", v: String(data.stats.drafts), icon: "edit" },
+    { k: "Awaiting payment", v: String(data.stats.awaiting), d: fmtMoney(data.stats.awaiting_value, currency), tone: "accent", icon: "clock" },
+    { k: "Paid today", v: String(data.stats.paid_today), d: fmtMoney(data.stats.paid_today_value, currency), tone: "ok", icon: "check" },
+  ]));
+
+  const filters = h("div", { class: "pot-filters" },
+    ...["", "draft", "awaiting", "paid"].map((f) =>
+      h("button", { class: "pot-filter" + (ordersFilter === f ? " is-on" : ""), onClick: () => { ordersFilter = f; shell.select("orders"); } },
+        f === "" ? "All" : f.charAt(0).toUpperCase() + f.slice(1))));
+
+  const table = data.orders.length
+    ? dataTable<Order>({
+        columns: [
+          { head: "Customer", cell: (o) => h("div", null, h("strong", null, o.customer.name), o.customer.phone ? h("div", { class: "bv-muted" }, o.customer.phone) : null) },
+          { head: "Items", cell: (o) => h("span", { class: "bv-muted" }, o.items.map((i) => `${i.qty}× ${i.title}`).join(", ").slice(0, 60) || "—") },
+          { head: "Total", num: true, cell: (o) => fmtMoney(o.subtotal, o.currency) },
+          { head: "State", cell: (o) => statePill(o.state) },
+          { head: "When", cell: (o) => h("span", { class: "bv-muted" }, relTime(o.created_at)) },
+        ],
+        rows: data.orders,
+        onRowClick: (o) => openOrder(o),
+      })
+    : emptyState({ icon: "phone", title: "No orders yet", text: "Take your first phone order from the New order tab." });
+
+  host.append(card({ title: "Orders", action: filters, body: table }));
 }
 
-function statCard(l: string, v: string) { return `<div class="bv-card"><div class="bv-label">${esc(l)}</div><div style="font-size:24px;font-weight:600;">${esc(v)}</div></div>`; }
-function statSkel(n: number) { return Array.from({ length: n }).map(() => `<div class="bv-card"><div class="bv-skeleton" style="width:50%;"></div><div class="bv-skeleton" style="height:24px;width:40%;margin-top:6px;"></div></div>`).join(""); }
-function money(n: number, c: string) { try { return new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n || 0); } catch { return `${(n || 0).toFixed(2)} ${c}`; } }
-function fatal(t: string, m?: string) { return `<div class="bv-shell"><div class="bv-card" style="text-align:center;"><h1>${esc(t)} couldn't load</h1><p class="bv-muted">${esc(m || "Unknown error")}</p></div></div>`; }
-function esc(s: string) { return String(s).replace(/[&<>"]/g, (c) => c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;"); }
+function statePill(state: string) {
+  const tone = state === "paid" ? "ok" : state === "awaiting" ? "warn" : state === "cancelled" ? "bad" : undefined;
+  return pill(state, tone);
+}
+
+function openOrder(o: Order) {
+  const body = h("div", { class: "pot-detail" });
+  body.append(
+    h("div", { class: "pot-detail-cust" },
+      h("strong", null, o.customer.name),
+      o.customer.email ? h("div", { class: "bv-muted" }, o.customer.email) : null,
+      o.customer.phone ? h("div", { class: "bv-muted" }, o.customer.phone) : null),
+    h("table", { class: "bv-table pot-detail-items" },
+      h("tbody", null, ...o.items.map((i) =>
+        h("tr", null, h("td", null, `${i.qty}× ${i.title}`), h("td", { class: "num" }, fmtMoney(i.price * i.qty, o.currency)))),
+        h("tr", null, h("td", null, h("b", null, "Subtotal")), h("td", { class: "num" }, h("b", null, fmtMoney(o.subtotal, o.currency)))))),
+    h("div", { class: "pot-detail-meta" },
+      h("span", null, "State: ", statePill(o.state)),
+      o.inkress_order_id ? h("span", { class: "bv-muted" }, `Inkress #${o.inkress_order_id}`) : null,
+      o.created_by ? h("span", { class: "bv-muted" }, `by ${o.created_by.name}`) : null),
+  );
+  if (o.note) body.append(h("p", { class: "bv-muted" }, o.note));
+  if (o.payment_url) {
+    body.append(h("div", { class: "pot-actions", style: { marginTop: "8px" } },
+      h("button", { class: "ghost", onClick: () => { navigator.clipboard?.writeText(o.payment_url!); flash("Link copied", "success"); } }, "Copy link"),
+      h("a", { class: "pot-btnlink", href: o.payment_url, target: "_blank", rel: "noopener" }, "Open checkout")));
+  }
+
+  const actions: { label: string; primary?: boolean; danger?: boolean; onClick?: () => void | boolean }[] = [];
+  if (o.state === "draft") {
+    actions.push({ label: "Send link", primary: true, onClick: () => { issueExisting(o, "link"); } });
+    actions.push({ label: "Cash", onClick: () => { issueExisting(o, "cash"); } });
+    actions.push({ label: "Delete", danger: true, onClick: () => { delOrder(o); } });
+  } else if (o.state === "awaiting") {
+    actions.push({ label: "Check payment", primary: true, onClick: () => { pollOrder(o); return true; } });
+    actions.push({ label: "Cancel order", danger: true, onClick: () => { delOrder(o); } });
+  } else {
+    actions.push({ label: "Close", onClick: () => {} });
+  }
+  openModal({ title: `Order — ${o.customer.name}`, body, actions });
+}
+
+async function issueExisting(o: Order, mode: "link" | "cash") {
+  try {
+    const result = await bvApi<any>(`/api/orders/${o.id}/issue`, { method: "POST", body: JSON.stringify({ mode }) });
+    showCloseoutResult(mode, result);
+  } catch (err: any) { toast(err?.message || "error", "error"); }
+}
+async function pollOrder(o: Order) {
+  try {
+    const { changed } = await bvApi<{ changed: boolean }>(`/api/orders/${o.id}/poll`, { method: "POST" });
+    flash(changed ? "Payment received — marked paid." : "Still awaiting payment.", changed ? "success" : "info");
+    if (changed) shell.select("orders");
+  } catch (err: any) { toast(err?.message || "error", "error"); }
+}
+async function delOrder(o: Order) {
+  try { await bvApi(`/api/orders/${o.id}`, { method: "DELETE" }); flash("Removed", "success"); shell.select("orders"); }
+  catch (err: any) { toast(err?.message || "error", "error"); }
+}
+
+/* ------------------------------------------------------------------ Settings */
+async function renderSettings(host: HTMLElement) {
+  let s: any = {};
+  let sesOk = false;
+  try { const r = await bvApi<{ settings: any; ses_configured: boolean }>("/api/settings"); s = r.settings || {}; sesOk = r.ses_configured; } catch { /* defaults */ }
+
+  let whatsapp = s.whatsapp || "";
+  const body = h("div", { class: "pot-settings" },
+    field("WhatsApp number (for the \"copy message\" link)", whatsapp, (v) => (whatsapp = v), "e.g. 18761234567"),
+    h("div", { class: "pot-setting-note bv-muted" },
+      iconEl(sesOk ? "check" : "alert", 15),
+      sesOk ? "Email sending is active (payment links email automatically)." : "Email sending isn't configured yet — links can still be copied/WhatsApped."),
+    h("div", { class: "pot-actions" },
+      h("button", { class: "primary", onClick: async () => {
+        try { await bvApi("/api/settings", { method: "POST", body: JSON.stringify({ whatsapp }) }); flash("Settings saved", "success"); }
+        catch (err: any) { toast(err?.message || "error", "error"); }
+      } }, "Save settings")),
+  );
+  host.append(card({ title: "Settings", body }));
+}
+
+/* -------------------------------------------------------------------- helpers */
+function field(label: string, value: string, onInput: (v: string) => void, placeholder = "") {
+  const input = h("input", { class: "pot-field-input", value, placeholder }) as HTMLInputElement;
+  input.addEventListener("input", () => onInput(input.value));
+  return h("label", { class: "pot-field" }, h("span", { class: "pot-field-label" }, label), input);
+}
+function fatal(msg?: string) {
+  return h("div", { class: "bv-empty", style: { margin: "40px auto" } },
+    h("h3", null, "Phone Order Taker couldn't load"),
+    h("p", null, msg || "Open this app from the Inkress dashboard."));
+}

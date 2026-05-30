@@ -276,22 +276,10 @@ importers:
       '@inkress/app-bridge':
         specifier: github:jamlance/app-bridge
         version: https://codeload.github.com/jamlance/app-bridge/tar.gz/31c693b7345c2110bf92a482d63530feae0a8925
-      better-sqlite3:
-        specifier: ^11.5.0
-        version: 11.10.0
-      cookie-parser:
-        specifier: ^1.4.7
-        version: 1.4.7
       express:
         specifier: ^4.19.2
         version: 4.22.2
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.11
-        version: 7.6.13
-      '@types/cookie-parser':
-        specifier: ^1.4.7
-        version: 1.4.10(@types/express@4.17.25)
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -492,6 +480,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@aws-sdk/client-ses':
+        specifier: ^3.1041.0
+        version: 3.1057.0
       '@inkress/app-bridge':
         specifier: github:jamlance/app-bridge
         version: https://codeload.github.com/jamlance/app-bridge/tar.gz/31c693b7345c2110bf92a482d63530feae0a8925
@@ -504,6 +495,9 @@ importers:
       express:
         specifier: ^4.19.2
         version: 4.22.2
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
     devDependencies:
       '@types/node':
         specifier: ^20.11.0

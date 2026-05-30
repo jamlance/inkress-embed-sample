@@ -158,5 +158,14 @@ export function mountAppCore(app, opts) {
 }
 
 // Re-exports so callers can import the API helpers via the same module.
-export { exchangeSessionToken, inkressApi, InkressApiError, orderStatusName, isPaidStatus } from "./inkress-api.mjs";
+export {
+  exchangeSessionToken,
+  inkressApi,
+  InkressApiError,
+  orderStatusName,
+  isPaidStatus,
+  createInkressOrder,
+  getInkressOrder,
+  listInkressOrders,
+} from "./inkress-api.mjs";
 export { SessionStore, SESSION_COOKIE } from "./session-store.mjs";
