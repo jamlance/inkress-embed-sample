@@ -5,7 +5,7 @@ import {
   mountShell,
   h,
   flash,
-  icon,
+  iconEl,
   type BvSession,
 } from "./bv-init";
 
@@ -72,7 +72,7 @@ function fatal(message?: string) {
     h(
       "div",
       { class: "bv-card" },
-      h("h2", null, icon("alert", 18) as any, "Couldn't start"),
+      h("h2", null, iconEl("alert", 18), "Couldn't start"),
       h(
         "div",
         { class: "bv-muted", style: { marginTop: "8px" } },
