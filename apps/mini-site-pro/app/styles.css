@@ -1,0 +1,404 @@
+/* Mini-site Pro — editor + storefront styles.
+   Design language ported from the approved Inkress marketplace / hosted-checkout
+   system: warm OKLCH neutrals + clay accent, Bricolage Grotesque display +
+   Hanken Grotesk body. Builds on @inkress/app-kit/styles.css (--bv-* tokens). */
+
+/* ============================================================
+   EDITOR — uplift the app-kit chrome with warm type + accent.
+   ============================================================ */
+:root {
+  --bv-font: "Hanken Grotesk Variable", "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bv-accent: #bd5d3a;          /* clay */
+  --bv-bg: oklch(0.975 0.012 75);
+  --bv-surface: oklch(0.995 0.006 80);
+  --bv-fg: oklch(0.28 0.021 55);
+  --bv-muted: oklch(0.52 0.022 60);
+  --bv-faint: oklch(0.66 0.020 64);
+  --bv-line: oklch(0.91 0.013 72);
+  --bv-radius: 14px;
+  --bv-radius-sm: 10px;
+  --bv-shadow: 0 1px 2px oklch(0.4 0.03 55 / 0.05), 0 10px 26px oklch(0.4 0.03 55 / 0.07);
+}
+:root[data-theme="dark"] {
+  --bv-bg: oklch(0.205 0.013 55);
+  --bv-surface: oklch(0.245 0.014 52);
+  --bv-fg: oklch(0.93 0.012 78);
+  --bv-muted: oklch(0.71 0.018 66);
+  --bv-faint: oklch(0.58 0.018 64);
+  --bv-line: oklch(0.34 0.014 50);
+  --bv-accent: #d4794f;
+  --bv-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 30px oklch(0 0 0 / 0.4);
+}
+
+.bv-header h1,
+.bv-card-title,
+.mk-h-name,
+.mk-modal-head strong,
+.mk-modal-head h3 {
+  font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font);
+  letter-spacing: -0.02em;
+}
+
+/* App header (logo + name) — a touch more presence. */
+.mk-h-name { font-size: 1.18rem; font-weight: 700; }
+
+.bv-sm { font-size: 0.78rem; }
+.bv-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.84rem; }
+.bv-formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+
+/* ---- fields ---- */
+.mk-field { display: flex; flex-direction: column; margin-bottom: 14px; }
+.mk-field-prefixed { display: flex; align-items: stretch; }
+.mk-field-prefixed .mk-prefix { display: inline-flex; align-items: center; padding: 0 11px; border: 1px solid var(--bv-line); border-right: 0; border-radius: var(--bv-radius-sm) 0 0 var(--bv-radius-sm); background: var(--bv-bg); color: var(--bv-muted); font-size: 0.85rem; }
+.mk-field-prefixed .bv-input { border-radius: 0 var(--bv-radius-sm) var(--bv-radius-sm) 0; }
+.mk-arrrow { display: flex; gap: 6px; margin-bottom: 6px; }
+.mk-arrrow .bv-input { flex: 1; }
+.mk-urlalt { margin-top: 8px; }
+.mk-urlalt summary { cursor: pointer; color: var(--bv-muted); font-size: 0.85rem; }
+
+/* ---- modal ---- */
+.mk-modal-backdrop { position: fixed; inset: 0; background: oklch(0.28 0.02 55 / 0.42); backdrop-filter: blur(2px); display: grid; place-items: center; padding: 20px; z-index: 50; }
+.mk-modal { background: var(--bv-surface); border: 1px solid var(--bv-line); border-radius: var(--bv-radius); max-width: 460px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px oklch(0.28 0.03 55 / 0.28); }
+.mk-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--bv-line); }
+.mk-modal-body { padding: 18px; overflow: auto; }
+.mk-modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.mk-x { border: 0; background: none; font-size: 22px; line-height: 1; color: var(--bv-muted); cursor: pointer; border-radius: 8px; width: 30px; height: 30px; }
+.mk-x:hover { background: var(--bv-bg); }
+
+/* ---- image upload ---- */
+.mk-drop { position: relative; border: 1.5px dashed var(--bv-line); border-radius: var(--bv-radius); min-height: 120px; display: grid; place-items: center; padding: 14px; cursor: pointer; background: var(--bv-bg); transition: border-color 0.16s ease, background 0.16s ease; }
+.mk-drop.compact { min-height: 70px; }
+.mk-drop:hover { border-color: color-mix(in oklch, var(--bv-accent) 50%, var(--bv-line)); }
+.mk-drop.over { border-color: var(--bv-accent); background: color-mix(in oklch, var(--bv-accent) 8%, transparent); }
+.mk-drop-prev { max-width: 100%; max-height: 160px; border-radius: 8px; object-fit: contain; }
+.mk-drop-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.mk-drop-busy { position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; background: color-mix(in oklch, var(--bv-surface) 72%, transparent); color: var(--bv-muted); font-size: 0.85rem; border-radius: var(--bv-radius); }
+
+/* ---- builder ---- */
+.mk-builder { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 940px) { .mk-builder { grid-template-columns: 1fr; } }
+.mk-blocks { display: flex; flex-direction: column; gap: 9px; margin: 12px 0; }
+.mk-block { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border: 1px solid var(--bv-line); border-radius: 12px; background: var(--bv-surface); transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1); }
+.mk-block:hover { border-color: color-mix(in oklch, var(--bv-accent) 32%, var(--bv-line)); box-shadow: var(--bv-shadow); }
+.mk-handle { cursor: grab; border: 0; background: none; color: var(--bv-faint); font-size: 18px; padding: 4px; touch-action: none; border-radius: 6px; }
+.mk-handle:hover { color: var(--bv-accent); }
+.mk-handle:active { cursor: grabbing; }
+.mk-block-icon { font-size: 1.15rem; width: 30px; height: 30px; display: grid; place-items: center; background: var(--bv-bg); border-radius: 9px; }
+.mk-block-main { flex: 1; min-width: 0; }
+.mk-block-label { font-weight: 600; font-size: 0.92rem; }
+.mk-addgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.mk-addbtn { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 16px; height: auto; border: 1px solid var(--bv-line); border-radius: 12px; background: var(--bv-surface); cursor: pointer; font: inherit; transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1); }
+.mk-addbtn:hover { border-color: var(--bv-accent); transform: translateY(-1px); }
+.mk-preview-frame { overflow: auto; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-surface); box-shadow: var(--bv-shadow); max-height: 78vh; }
+.mk-preview-frame .mk-store { min-height: 0; }
+.mk-saved { color: var(--bv-muted); font-size: 0.8rem; display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---- gallery editor ---- */
+.mk-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.mk-gtile { position: relative; aspect-ratio: 1; border-radius: 10px; background-size: cover; background-position: center; background-color: var(--bv-bg); border: 1px solid var(--bv-line); }
+.mk-gx { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; border-radius: 50%; background: oklch(0.2 0.02 55 / 0.6); color: #fff; border: 0; font-size: 12px; cursor: pointer; }
+
+/* ---- products table ---- */
+.mk-thumb { width: 46px; height: 46px; border-radius: 11px; object-fit: cover; background: var(--bv-bg); display: inline-grid; place-items: center; font-weight: 700; color: var(--bv-muted); background-size: cover; background-position: center; font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); }
+.mk-thumb.ph { border: 1px solid var(--bv-line); }
+.mk-picklist { display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow: auto; }
+.mk-pick { display: flex; align-items: center; gap: 12px; padding: 9px; border: 1px solid var(--bv-line); border-radius: 11px; cursor: pointer; }
+.mk-pick:hover { border-color: var(--bv-accent); }
+.mk-pick input { width: auto; accent-color: var(--bv-accent); }
+
+/* =====================================================================
+   STOREFRONT (public) — warm, editorial, premium. Scoped to .mk-store.
+   ===================================================================== */
+.mk-store {
+  --mk-bg: oklch(0.975 0.013 73);
+  --mk-surface: oklch(0.995 0.006 80);
+  --mk-surface-2: oklch(0.955 0.015 72);
+  --mk-ink: oklch(0.27 0.021 55);
+  --mk-muted: oklch(0.5 0.022 60);
+  --mk-faint: oklch(0.63 0.02 64);
+  --mk-border: oklch(0.9 0.013 72);
+  --mk-border-strong: oklch(0.84 0.017 70);
+  --mk-shadow: 0 1px 2px oklch(0.4 0.03 55 / 0.05), 0 12px 30px oklch(0.4 0.03 55 / 0.08);
+  --mk-shadow-sm: 0 1px 2px oklch(0.4 0.03 55 / 0.06);
+  --mk-shadow-lg: 0 2px 4px oklch(0.4 0.03 55 / 0.06), 0 30px 64px oklch(0.4 0.03 55 / 0.12);
+  --accent: #bd5d3a;
+  --accent-ink: oklch(0.99 0.01 80);
+  --accent-tint: color-mix(in oklch, var(--accent) 14%, var(--mk-surface));
+  --accent-wash: color-mix(in oklch, var(--accent) 7%, var(--mk-bg));
+  --accent-line: color-mix(in oklch, var(--accent) 26%, var(--mk-border));
+  --r-sm: 11px;
+  --r: 16px;
+  --r-lg: 22px;
+  background: var(--mk-bg);
+  color: var(--mk-ink);
+  font-family: "Hanken Grotesk Variable", "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-color-scheme: dark) {
+  .mk-store {
+    --mk-bg: oklch(0.205 0.013 55);
+    --mk-surface: oklch(0.245 0.014 52);
+    --mk-surface-2: oklch(0.29 0.015 50);
+    --mk-ink: oklch(0.93 0.012 78);
+    --mk-muted: oklch(0.72 0.018 66);
+    --mk-faint: oklch(0.6 0.018 64);
+    --mk-border: oklch(0.34 0.014 50);
+    --mk-border-strong: oklch(0.42 0.016 50);
+    --mk-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 14px 34px oklch(0 0 0 / 0.45);
+    --mk-shadow-sm: 0 1px 2px oklch(0 0 0 / 0.35);
+    --mk-shadow-lg: 0 2px 4px oklch(0 0 0 / 0.35), 0 30px 64px oklch(0 0 0 / 0.55);
+  }
+}
+.mk-store * { box-sizing: border-box; }
+.mk-store h1, .mk-store h2, .mk-store h3 { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Hanken Grotesk Variable", "Hanken Grotesk", sans-serif; font-weight: 700; letter-spacing: -0.025em; line-height: 1.06; margin: 0; }
+.mk-store a { color: inherit; text-decoration: none; }
+.mk-store .tnum { font-variant-numeric: tabular-nums; }
+
+.mk-store-wrap { max-width: 1060px; margin: 0 auto; padding-inline: clamp(1.1rem, 4vw, 2.4rem); }
+.mk-store-band { padding-block: clamp(2.4rem, 6vw, 4.2rem); }
+.mk-store-band.alt { background: var(--mk-surface-2); }
+.mk-store-h2 { font-size: clamp(1.4rem, 3vw, 1.95rem); }
+.mk-store-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: clamp(1.2rem, 3vw, 1.9rem); flex-wrap: wrap; }
+.mk-store-count { font-size: 0.82rem; color: var(--mk-faint); font-variant-numeric: tabular-nums; }
+
+/* ---------- hero ---------- */
+.mk-store-hero { position: relative; isolation: isolate; overflow: hidden; display: flex; }
+.mk-store-hero-inner { width: 100%; max-width: 1060px; margin: 0 auto; padding: clamp(2.6rem, 7vw, 5rem) clamp(1.1rem, 4vw, 2.4rem); display: flex; flex-direction: column; gap: clamp(0.9rem, 2vw, 1.3rem); }
+.mk-store-hero.is-center .mk-store-hero-inner { align-items: center; text-align: center; }
+.mk-store-hero.is-center .mk-store-sub { margin-inline: auto; }
+
+/* image hero: full-bleed photo + warm bottom scrim, text on top */
+.mk-store-hero.has-img { min-height: clamp(380px, 64vh, 560px); align-items: flex-end; }
+.mk-store-hero-img { position: absolute; inset: 0; z-index: -2; background-size: cover; background-position: center; }
+.mk-store-hero.has-img::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, oklch(0.2 0.03 50 / 0.86) 4%, oklch(0.2 0.03 50 / 0.5) 38%, oklch(0.2 0.03 50 / 0.12) 72%, oklch(0.2 0.03 50 / 0.05)); }
+.mk-store-hero.has-img .mk-store-title,
+.mk-store-hero.has-img .mk-store-sub { color: oklch(0.99 0.01 85); }
+.mk-store-hero.has-img .mk-store-sub { opacity: 0.92; }
+
+/* image-less hero: warm wash + radial glow, no flat gradient banner */
+.mk-store-hero.no-img { background: radial-gradient(120% 90% at 0% 0%, var(--accent-wash), transparent 60%), var(--mk-bg); border-bottom: 1px solid var(--mk-border); }
+.mk-store-hero.no-img.is-center { background: radial-gradient(110% 80% at 50% 0%, var(--accent-wash), transparent 62%), var(--mk-bg); }
+
+.mk-store-brandrow { display: flex; align-items: center; gap: 0.8rem; }
+.mk-store-hero.is-center .mk-store-brandrow { justify-content: center; }
+.mk-store-logo { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; box-shadow: var(--mk-shadow); display: grid; place-items: center; flex: 0 0 auto; }
+.mk-store-logo.ph { background: var(--accent-tint); color: color-mix(in oklch, var(--accent) 78%, black 6%); font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque"; font-weight: 800; font-size: 1.4rem; }
+.mk-store-hero.has-img .mk-store-logo.ph { background: oklch(0.99 0.01 85 / 0.92); }
+.mk-store-proof { font-size: 0.78rem; font-weight: 600; padding: 0.34rem 0.7rem; border-radius: 999px; background: var(--accent-tint); color: color-mix(in oklch, var(--accent) 70%, black 8%); }
+.mk-store-hero.has-img .mk-store-proof { background: oklch(0.99 0.01 85 / 0.9); color: oklch(0.3 0.05 50); }
+.mk-store-title { font-size: clamp(2.3rem, 7vw, 4.1rem); font-weight: 800; letter-spacing: -0.035em; }
+.mk-store-sub { font-size: clamp(1.02rem, 2.2vw, 1.32rem); color: var(--mk-muted); max-width: 38ch; line-height: 1.4; }
+.mk-store-herocta { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.mk-store-hero.is-center .mk-store-herocta { justify-content: center; }
+.mk-store-cta { display: inline-flex; align-items: center; background: var(--accent); color: var(--accent-ink); padding: 0.85rem 1.5rem; border-radius: 999px; font-weight: 700; box-shadow: var(--mk-shadow-sm); transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease; }
+.mk-store-cta:hover { transform: translateY(-2px); box-shadow: var(--mk-shadow); }
+.mk-store-cta2 { display: inline-flex; align-items: center; padding: 0.85rem 1.3rem; border-radius: 999px; font-weight: 600; color: var(--mk-ink); border: 1px solid var(--mk-border-strong); background: var(--mk-surface); transition: border-color 0.18s ease; }
+.mk-store-hero.has-img .mk-store-cta2 { color: oklch(0.99 0.01 85); border-color: oklch(0.99 0.01 85 / 0.5); background: oklch(0.99 0.01 85 / 0.08); }
+.mk-store-cta2:hover { border-color: var(--accent); }
+
+/* ---------- products ---------- */
+.mk-store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: clamp(1rem, 2.2vw, 1.5rem); }
+.mk-store-card { display: flex; flex-direction: column; background: var(--mk-surface); border: 1px solid var(--mk-border); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--mk-shadow-sm); transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease; }
+.mk-store-card:hover { transform: translateY(-3px); box-shadow: var(--mk-shadow-lg); border-color: var(--accent-line); }
+.mk-store-thumb { aspect-ratio: 4 / 3; background-size: cover; background-position: center; background-color: var(--mk-surface-2); }
+.mk-store-thumb.ph { display: grid; place-items: center; font-size: 2.4rem; font-weight: 800; color: color-mix(in oklch, var(--accent) 60%, var(--mk-faint)); font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque"; background: var(--accent-tint); }
+.mk-store-cbody { padding: clamp(0.95rem, 2vw, 1.2rem); display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
+.mk-store-pname { font-size: 1.08rem; font-weight: 700; }
+.mk-store-pdesc { color: var(--mk-muted); font-size: 0.9rem; line-height: 1.5; flex: 1; }
+.mk-store-prow { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.6rem; }
+.mk-store-price { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque"; font-weight: 800; font-size: 1.16rem; letter-spacing: -0.02em; }
+.mk-store-buy { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px; padding: 0.6rem 1.15rem; font-weight: 700; font-size: 0.92rem; cursor: pointer; font-family: inherit; transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), filter 0.16s ease; }
+.mk-store-buy:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.mk-store-buy:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+/* ---------- prose / about ---------- */
+.mk-store-prose { max-width: 64ch; }
+.mk-store-prose .mk-store-h2 { margin-bottom: 0.9rem; }
+.mk-store-about { color: var(--mk-muted); font-size: 1.08rem; line-height: 1.75; white-space: pre-line; }
+
+/* ---------- gallery (mosaic) ---------- */
+.mk-store-gal { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; grid-auto-flow: dense; }
+.mk-store-gphoto { aspect-ratio: 1; background-size: cover; background-position: center; border-radius: var(--r); background-color: var(--mk-surface-2); box-shadow: var(--mk-shadow-sm); }
+.mk-store-gphoto:first-child { grid-column: span 2; grid-row: span 2; }
+@media (max-width: 720px) { .mk-store-gal { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- links ---------- */
+.mk-store-links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.mk-store-chip { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--mk-border-strong); padding: 0.6rem 1.05rem; border-radius: 999px; color: var(--mk-ink); font-weight: 600; background: var(--mk-surface); transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease, color 0.16s ease; }
+.mk-store-chip span { color: var(--mk-faint); transition: color 0.16s ease; }
+.mk-store-chip:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
+.mk-store-chip:hover span { color: var(--accent); }
+
+/* ---------- contact ---------- */
+.mk-store-contactwrap { max-width: 560px; }
+.mk-store-contact { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.4rem; }
+.mk-store-crow { display: flex; align-items: center; gap: 0.85rem; padding: 0.75rem 0; border-bottom: 1px solid var(--mk-border); font-size: 1.02rem; color: var(--mk-ink); }
+.mk-store-crow:last-child { border-bottom: 0; }
+.mk-store-cico { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; background: var(--accent-tint); color: color-mix(in oklch, var(--accent) 72%, black 6%); font-size: 0.95rem; }
+a.mk-store-crow:hover { color: var(--accent); }
+
+/* ---------- hours ---------- */
+.mk-store-hourswrap { max-width: 480px; }
+.mk-store-hours { margin: 0; display: flex; flex-direction: column; }
+.mk-store-hrow { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.7rem 0; border-bottom: 1px dashed var(--mk-border); }
+.mk-store-hrow:last-child { border-bottom: 0; }
+.mk-store-hrow dt { font-weight: 600; }
+.mk-store-hrow dd { margin: 0 0 0 auto; color: var(--mk-muted); }
+
+/* ---------- testimonials ---------- */
+.mk-store-tg { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: clamp(0.9rem, 2vw, 1.3rem); }
+.mk-store-tcard { position: relative; margin: 0; background: var(--mk-surface); border: 1px solid var(--mk-border); border-radius: var(--r-lg); padding: 1.5rem 1.4rem 1.3rem; box-shadow: var(--mk-shadow-sm); overflow: hidden; }
+.mk-store-quote { position: absolute; top: -0.35em; left: 0.4rem; font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque"; font-weight: 800; font-size: 5rem; line-height: 1; color: var(--accent-tint); z-index: 0; }
+.mk-store-tcard blockquote { position: relative; margin: 0; color: var(--mk-ink); font-size: 1.04rem; line-height: 1.55; z-index: 1; }
+.mk-store-tcard figcaption { margin-top: 0.9rem; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mk-faint); }
+
+/* ---------- footer ---------- */
+.mk-store-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; max-width: 1060px; margin: 0 auto; padding: 1.6rem clamp(1.1rem, 4vw, 2.4rem); border-top: 1px solid var(--mk-border); color: var(--mk-faint); font-size: 0.82rem; }
+.mk-store-foot span:first-child { font-weight: 600; color: var(--mk-muted); }
+.mk-store-foot-by { font-variant: small-caps; letter-spacing: 0.02em; }
+
+/* ---------- placeholder (builder preview only) ---------- */
+.mk-store-ph { color: var(--mk-faint); border: 1.5px dashed var(--mk-border-strong); border-radius: var(--r); padding: 2rem; text-align: center; }
+.mk-store-ph h2 { color: var(--mk-muted); margin-bottom: 0.4rem; }
+
+/* ---------- checkout sheet ---------- */
+.mk-store-modal { position: fixed; inset: 0; background: oklch(0.2 0.02 50 / 0.5); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 18px; z-index: 60; }
+.mk-store-sheet { position: relative; background: var(--mk-surface); border: 1px solid var(--mk-border); border-radius: var(--r-lg); max-width: 400px; width: 100%; padding: clamp(1.4rem, 4vw, 1.9rem); color: var(--mk-ink); box-shadow: var(--mk-shadow-lg); }
+.mk-store-sheet-lead { margin-bottom: 1.1rem; }
+.mk-store-sheet-k { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--mk-faint); font-weight: 600; }
+.mk-store-sheet-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.025em; margin: 0.15rem 0 0.2rem; }
+.mk-store-mprice { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque"; font-weight: 800; font-size: 1.15rem; color: var(--accent); }
+.mk-store-sheet label { display: block; font-size: 0.72rem; color: var(--mk-muted); margin: 0.85rem 0 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.mk-store-sheet input { width: 100%; padding: 0.78rem 0.9rem; border: 1px solid var(--mk-border-strong); border-radius: var(--r-sm); font-size: 15px; font-family: inherit; background: var(--mk-bg); color: var(--mk-ink); transition: border-color 0.16s ease, box-shadow 0.16s ease; }
+.mk-store-sheet input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+.mk-store-x { position: absolute; top: 0.9rem; right: 0.9rem; cursor: pointer; color: var(--mk-faint); font-size: 22px; border: 0; background: none; line-height: 1; width: 30px; height: 30px; border-radius: 8px; }
+.mk-store-x:hover { background: var(--mk-surface-2); }
+.mk-store-err { color: oklch(0.55 0.17 25); font-size: 0.85rem; margin-top: 0.6rem; }
+.mk-store-go { width: 100%; margin-top: 1.1rem; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px; padding: 0.95rem; font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), filter 0.16s ease; }
+.mk-store-go:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+.mk-store-go:disabled { opacity: 0.6; }
+.mk-store-secure { text-align: center; font-size: 0.74rem; color: var(--mk-faint); margin: 0.8rem 0 0; }
+
+/* =====================================================================
+   EDITOR WORKSPACE — two shells (studio + sidebar) sharing the panels.
+   ===================================================================== */
+.mk-studio, .mk-side { min-height: 100vh; background: var(--bv-bg); color: var(--bv-fg); }
+
+/* shared panel chrome */
+.mk-panel { display: flex; flex-direction: column; gap: 14px; }
+.mk-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mk-panel-title { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.mk-panel-sub { color: var(--bv-muted); font-size: 0.86rem; margin: 2px 0 0; }
+.mk-preview-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bv-faint); margin-bottom: 8px; }
+
+.mk-brandmark { width: 38px; height: 38px; border-radius: 11px; object-fit: cover; flex: 0 0 auto; display: grid; place-items: center; font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 0.95rem; box-shadow: var(--bv-shadow); }
+
+/* device-frame live preview */
+.mk-device { border: 1px solid var(--bv-line); border-radius: 16px; overflow: hidden; background: var(--bv-surface); box-shadow: var(--bv-shadow); display: flex; flex-direction: column; }
+.mk-device-bar { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--bv-line); background: var(--bv-bg); }
+.mk-device-dots { display: inline-flex; gap: 5px; }
+.mk-device-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--bv-line); display: inline-block; }
+.mk-device-url { flex: 1; font-size: 0.74rem; color: var(--bv-muted); background: var(--bv-surface); border: 1px solid var(--bv-line); border-radius: 999px; padding: 4px 12px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-device-open { color: var(--bv-muted); font-size: 0.9rem; padding: 2px 6px; border-radius: 7px; }
+.mk-device-open:hover { background: var(--bv-bg); color: var(--bv-accent); }
+.mk-device-screen { overflow: auto; max-height: calc(100vh - 168px); background: #fff; }
+.mk-device-screen .mk-store { min-height: 0; }
+
+/* ── studio shell: preview-first ── */
+.mk-studio-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px clamp(16px, 3vw, 28px); border-bottom: 1px solid var(--bv-line); background: var(--bv-surface); position: sticky; top: 0; z-index: 10; }
+.mk-studio-brand { display: flex; align-items: center; gap: 11px; }
+.mk-studio-name { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); font-weight: 700; font-size: 1.05rem; letter-spacing: -0.015em; }
+.mk-studio-handle { font-size: 0.76rem; color: var(--bv-faint); }
+.mk-studio-actions { display: flex; align-items: center; gap: 8px; }
+
+.mk-studio-body { display: grid; grid-template-columns: 172px minmax(300px, 380px) 1fr; align-items: start; gap: clamp(14px, 2vw, 26px); padding: clamp(16px, 2.4vw, 26px); }
+.mk-rail { display: flex; flex-direction: column; gap: 3px; position: sticky; top: 80px; }
+.mk-rail-btn { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border: 0; background: none; border-radius: 11px; font: inherit; font-weight: 600; color: var(--bv-muted); cursor: pointer; text-align: left; transition: background 0.14s, color 0.14s; }
+.mk-rail-btn:hover { background: var(--bv-surface); color: var(--bv-fg); }
+.mk-rail-btn.is-active { background: color-mix(in oklch, var(--bv-accent) 12%, var(--bv-surface)); color: var(--bv-accent); }
+.mk-rail-glyph { font-size: 1.05rem; width: 22px; text-align: center; }
+
+.mk-studio-controls { background: var(--bv-surface); border: 1px solid var(--bv-line); border-radius: 18px; box-shadow: var(--bv-shadow); padding: clamp(16px, 2vw, 22px); }
+.mk-studio-preview { position: sticky; top: 80px; }
+
+/* ── sidebar shell: admin workspace ── */
+.mk-side { display: grid; grid-template-columns: 252px 1fr; }
+.mk-side-nav { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 6px; padding: 18px 14px; border-right: 1px solid var(--bv-line); background: var(--bv-surface); }
+.mk-side-brand { display: flex; align-items: center; gap: 11px; padding: 6px 8px 16px; }
+.mk-side-brandtext { min-width: 0; }
+.mk-side-name { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); font-weight: 700; font-size: 1.02rem; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-side-status { font-size: 0.74rem; color: var(--bv-muted); }
+.mk-side-status.live { color: var(--bv-ok); }
+.mk-side-list { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.mk-side-item { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 0; background: none; border-radius: 11px; font: inherit; font-weight: 600; color: var(--bv-muted); cursor: pointer; text-align: left; transition: background 0.14s, color 0.14s; }
+.mk-side-item:hover { background: var(--bv-bg); color: var(--bv-fg); }
+.mk-side-item.is-active { background: color-mix(in oklch, var(--bv-accent) 13%, var(--bv-surface)); color: var(--bv-accent); }
+.mk-side-glyph { font-size: 1.05rem; width: 20px; text-align: center; }
+.mk-side-foot { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--bv-line); }
+.mk-side-foot .bv-btn { width: 100%; }
+
+.mk-side-main { padding: clamp(20px, 3vw, 36px); max-width: 1180px; }
+.mk-side-main.split { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 480px); gap: clamp(18px, 2.4vw, 32px); align-items: start; max-width: none; }
+.mk-side-panel { background: var(--bv-surface); border: 1px solid var(--bv-line); border-radius: 18px; box-shadow: var(--bv-shadow); padding: clamp(18px, 2vw, 26px); }
+.mk-side-previewcol { position: sticky; top: 24px; }
+
+/* ── panel internals ── */
+.mk-formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 16px; }
+.mk-add-cta { width: 100%; padding: 12px; border: 1.5px dashed var(--bv-line); border-radius: 12px; background: none; color: var(--bv-muted); font: inherit; font-weight: 600; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.mk-add-cta:hover { border-color: var(--bv-accent); color: var(--bv-accent); }
+.mk-emptyblocks { text-align: center; color: var(--bv-muted); padding: 26px; border: 1.5px dashed var(--bv-line); border-radius: 12px; font-size: 0.9rem; }
+
+/* theme presets */
+.mk-themegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.mk-themecard { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 8px; border: 1px solid var(--bv-line); border-radius: 12px; background: var(--bv-surface); cursor: pointer; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--bv-fg); transition: border-color 0.15s, transform 0.15s cubic-bezier(0.22,1,0.36,1); }
+.mk-themecard:hover { transform: translateY(-2px); border-color: var(--bv-faint); }
+.mk-themecard.is-active { border-color: var(--bv-accent); box-shadow: 0 0 0 2px color-mix(in oklch, var(--bv-accent) 30%, transparent); }
+.mk-themeswatch { width: 100%; height: 34px; border-radius: 8px; }
+.mk-colorrow { display: flex; align-items: center; gap: 10px; }
+.mk-colorchip { width: 46px; height: 38px; padding: 3px; border: 1px solid var(--bv-line); border-radius: 10px; background: var(--bv-surface); cursor: pointer; }
+.mk-themerow { max-width: 320px; }
+
+/* stats + subcards (page panel) */
+.mk-statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.mk-stat { border: 1px solid var(--bv-line); border-radius: 13px; padding: 13px 14px; background: var(--bv-bg); display: flex; flex-direction: column; gap: 4px; }
+.mk-stat-k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--bv-muted); font-weight: 600; }
+.mk-stat-v { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; }
+.mk-subcard { border: 1px solid var(--bv-line); border-radius: 14px; padding: 16px; background: var(--bv-bg); }
+.mk-subcard-t { font-weight: 700; margin-bottom: 8px; }
+
+/* product list */
+.mk-prodlist { display: flex; flex-direction: column; gap: 8px; }
+.mk-prodrow { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border: 1px solid var(--bv-line); border-radius: 13px; background: var(--bv-surface); }
+.mk-thumb.lg { width: 52px; height: 52px; border-radius: 11px; }
+.mk-prodmain { flex: 1; min-width: 0; }
+.mk-prodname { font-weight: 600; }
+.mk-prodprice { font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); font-weight: 800; }
+
+/* layout picker (settings) */
+.mk-layoutpick { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.mk-layoutcard { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--bv-line); border-radius: 15px; background: var(--bv-surface); cursor: pointer; font: inherit; text-align: left; transition: border-color 0.15s, transform 0.15s cubic-bezier(0.22,1,0.36,1); }
+.mk-layoutcard:hover { transform: translateY(-2px); border-color: var(--bv-faint); }
+.mk-layoutcard.is-active { border-color: var(--bv-accent); box-shadow: 0 0 0 2px color-mix(in oklch, var(--bv-accent) 30%, transparent); }
+.mk-layoutname { font-weight: 700; font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--bv-font); }
+.mk-layoutdesc { font-size: 0.82rem; color: var(--bv-muted); }
+.mk-layoutart { position: relative; height: 60px; border-radius: 9px; border: 1px solid var(--bv-line); background: var(--bv-bg); overflow: hidden; display: block; }
+.mk-layoutart > span { position: absolute; background: color-mix(in oklch, var(--bv-accent) 35%, var(--bv-surface)); border-radius: 3px; }
+.mk-layoutart.studio .r { left: 6px; top: 6px; bottom: 6px; width: 14px; background: var(--bv-line); }
+.mk-layoutart.studio .m { left: 26px; top: 6px; bottom: 6px; width: 30px; background: var(--bv-line); }
+.mk-layoutart.studio .p { right: 6px; top: 6px; bottom: 6px; left: 62px; background: color-mix(in oklch, var(--bv-accent) 30%, var(--bv-surface)); }
+.mk-layoutart.sidebar .s { left: 6px; top: 6px; bottom: 6px; width: 24px; background: var(--bv-line); }
+.mk-layoutart.sidebar .b { right: 6px; top: 6px; bottom: 6px; left: 36px; background: color-mix(in oklch, var(--bv-accent) 22%, var(--bv-surface)); }
+
+@media (max-width: 920px) {
+  .mk-studio-body { grid-template-columns: 1fr; }
+  .mk-rail { flex-direction: row; flex-wrap: wrap; position: static; }
+  .mk-studio-preview { position: static; }
+  .mk-side { grid-template-columns: 1fr; }
+  .mk-side-nav { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .mk-side-list { flex-direction: row; flex-wrap: wrap; }
+  .mk-side-main.split { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,107 @@
+{
+  "name": "@inkress/app-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable kit for building Inkress-embedded apps on React Router v7: embedded session/OAuth, authenticated admin-sdk in loaders/actions, storage, webhooks, and the client provider/hooks.",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./server/session": {
+      "types": "./dist/server/session.d.ts",
+      "import": "./dist/server/session.js"
+    },
+    "./server/storage": {
+      "types": "./dist/server/storage.d.ts",
+      "import": "./dist/server/storage.js"
+    },
+    "./server/tokens": {
+      "types": "./dist/server/tokens.d.ts",
+      "import": "./dist/server/tokens.js"
+    },
+    "./server/services": {
+      "types": "./dist/server/services.d.ts",
+      "import": "./dist/server/services.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inkress/admin-sdk": "^1.1.48",
+    "@inkress/storefront-sdk": "^0.0.1",
+    "@inkress/app-bridge": "github:jamlance/app-bridge",
+    "@react-router/express": "^7.17.0",
+    "cookie": "^1.0.2",
+    "drizzle-orm": "^0.45.2",
+    "express": "^4.21.0",
+    "pg": "^8.13.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0",
+    "@aws-sdk/client-sns": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/client-ses": {
+      "optional": true
+    },
+    "@aws-sdk/client-sns": {
+      "optional": true
+    },
+    "react": {
+      "optional": false
+    },
+    "react-dom": {
+      "optional": false
+    },
+    "react-router": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0",
+    "@aws-sdk/client-sns": "^3.0.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "^0.31.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.17.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
